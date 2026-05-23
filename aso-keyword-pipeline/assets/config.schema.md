@@ -15,7 +15,10 @@ Required unless marked **(optional)**.
 | `app_name` | string | Display name; used for the app folder and brand filtering. |
 | `app_store_id` | string | Your app's Apple id (numeric, for reference / self-lookup). |
 | `play_package` | string **(optional)** | Android package id; App Store is the primary target. |
-| `root_folder` | string | Drive root, default `"ASO"`. |
+| `current_version` | string | Active App Store version, e.g. `"1.0.0"`. Drives the `v<version>/` folder. Bump it when you release a new App Store build so the previous version's artefacts stay intact. |
+| `root_folder` | string | Local folder root, default `"ASO"`. The app folder is `<root_folder>/<app_name>/`. |
+| `drive_root` | string **(optional)** | Top-level folder name on Google Drive (Phase 0d / sync.py). Defaults to `root_folder`. The remote path is `<remote>:<drive_root>/<app_name>/v<version>/<locale>/`. |
+| `rclone_remote` | string **(optional)** | The name you gave the Drive remote in `rclone config` (e.g. `gdrive`). Empty → sync.py refuses to run. Configured in Phase 0d. |
 | `apptweak_key_env` | string | Env var name holding the AppTweak key (default `APPTWEAK_API_KEY`). The key itself lives in `.env`, never in this file. |
 | `competitors` | array | Ordered list of `{ "name": …, "app_id": … }` (both required, `app_id` numeric). Order = matrix column order. **Minimum 3 entries** — the script aborts below this (≥3 rule). |
 | `brand_terms` | array | Lower-case brand tokens to strip in Phase 3 (your brand + every competitor brand). Empty → brand filter is a no-op (the script warns). |
@@ -132,19 +135,24 @@ collection prompt):
 - …
 ```
 
-## `OUTPUT.csv` contract (Phase 5 consolidated output)
+## `OUTPUT.csv` contract (Phase 5 consolidated output, per version)
 
-Both `<locale>/fields.csv` and the app-level `OUTPUT.csv` share the same
-six-column shape:
+Both `<locale>/fields.csv` and the version-level `OUTPUT.csv` share the
+same six-column shape:
 
 ```
 locale,title,subtitle,keywords,promo,description
 ```
 
-- `fields.csv` (per locale) has **exactly one row**.
-- `OUTPUT.csv` (per app) has **one row per locale**, appended in the order
-  Phase 5 is run. The header is written when the file is created.
+- `fields.csv` (per locale, under `v<version>/<locale>/`) has **exactly
+  one row**.
+- `OUTPUT.csv` (per version, at `v<version>/OUTPUT.csv`) has **one row
+  per locale**, appended in the order Phase 5 is run.
 - Locale codes in the `locale` column must match the keys in
   `config.locales` exactly (e.g. `de-DE`, not `de`).
+- **A new App Store version → new `OUTPUT.csv`.** Bump
+  `config.current_version` before re-running the pipeline; previous
+  version's `OUTPUT.csv` stays untouched under its own `v<x>/` folder
+  for historical reference.
 - `validate_fields.py` always runs against `fields.csv`. It refuses to
   run against `OUTPUT.csv` (multi-row guard).

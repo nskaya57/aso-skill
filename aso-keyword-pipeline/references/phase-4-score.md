@@ -112,6 +112,9 @@ length into `total` itself.
 
 ## How to run
 
+> Paths below are shown as `<locale>/…` for readability. The full path is
+> `ASO/<AppName>/v<current_version>/<locale>/…` (see drive-hierarchy.md).
+
 Step 1 — emit a JSON skeleton from `filtered.csv` so the model can fill
 `semantic` values in a single structured artefact (instead of editing
 CSV cells by hand and risking column drift):

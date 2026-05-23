@@ -16,7 +16,7 @@ read from disk and never depend on the API again.
 python scripts/fetch_keywords.py \
   --config ASO/<AppName>/config.json \
   --locale <locale> \
-  --out-dir ASO/<AppName>/<locale>/raw
+  --out-dir ASO/<AppName>/v<version>/<locale>/raw
 ```
 
 The script reads `.env` (default `./.env`, override with `--env <path>`),

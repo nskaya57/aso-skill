@@ -73,28 +73,28 @@ weights are tunable in the config.
 # Phase 1 — fetch competitor keywords (reads .env, runs preflight key check,
 #          retries 429/5xx with backoff). Default --max 100 per competitor.
 python scripts/fetch_keywords.py --config ASO/<App>/config.json \
-  --locale <locale> --out-dir ASO/<App>/<locale>/raw [--max 100] [--env .env]
+  --locale <locale> --out-dir ASO/<App>/v<version>/<locale>/raw [--max 100] [--env .env]
 
 # Phase 2 — merge competitor JSONs into a matrix
-python scripts/aso_score.py --stage merge  --raw-dir ASO/<App>/<locale>/raw \
-  --config ASO/<App>/config.json --out ASO/<App>/<locale>/merged.csv
+python scripts/aso_score.py --stage merge  --raw-dir ASO/<App>/v<version>/<locale>/raw \
+  --config ASO/<App>/config.json --out ASO/<App>/v<version>/<locale>/merged.csv
 
 # Phase 3 — filter brand / wrong-script / stop / self-indexed + ≥3 + competitor
-python scripts/aso_score.py --stage filter --in ASO/<App>/<locale>/merged.csv \
-  --config ASO/<App>/config.json --locale <locale> --out ASO/<App>/<locale>/filtered.csv
+python scripts/aso_score.py --stage filter --in ASO/<App>/v<version>/<locale>/merged.csv \
+  --config ASO/<App>/config.json --locale <locale> --out ASO/<App>/v<version>/<locale>/filtered.csv
 
 # Phase 4a — emit a semantic.json skeleton for the model to fill
-python scripts/fill_semantic.py --in ASO/<App>/<locale>/filtered.csv \
-  --emit-skeleton ASO/<App>/<locale>/semantic.json
+python scripts/fill_semantic.py --in ASO/<App>/v<version>/<locale>/filtered.csv \
+  --emit-skeleton ASO/<App>/v<version>/<locale>/semantic.json
 
 # Phase 4b — apply the filled semantic.json to filtered.csv
-python scripts/fill_semantic.py --in ASO/<App>/<locale>/filtered.csv \
-  --semantic-json ASO/<App>/<locale>/semantic.json \
-  --out ASO/<App>/<locale>/filtered.semantic.csv
+python scripts/fill_semantic.py --in ASO/<App>/v<version>/<locale>/filtered.csv \
+  --semantic-json ASO/<App>/v<version>/<locale>/semantic.json \
+  --out ASO/<App>/v<version>/<locale>/filtered.semantic.csv
 
 # Phase 4c — compute totals + sort
-python scripts/aso_score.py --stage total --in ASO/<App>/<locale>/filtered.semantic.csv \
-  --config ASO/<App>/config.json --out ASO/<App>/<locale>/scored.csv
+python scripts/aso_score.py --stage total --in ASO/<App>/v<version>/<locale>/filtered.semantic.csv \
+  --config ASO/<App>/config.json --out ASO/<App>/v<version>/<locale>/scored.csv
 
 # Phase 4/5 — read features.md as structured JSON
 python scripts/parse_features.py --in ASO/<App>/features.md
@@ -102,23 +102,33 @@ python scripts/parse_features.py --in ASO/<App>/features.md
 # Phase 5 — write fields.csv + append to OUTPUT.csv (safe CSV escaping)
 python scripts/write_fields.py --locale <locale> --title "..." --subtitle "..." \
   --keywords "..." --promo "..." --description-file desc.txt \
-  --out ASO/<App>/<locale>/fields.csv --output-csv ASO/<App>/OUTPUT.csv
+  --out ASO/<App>/v<version>/<locale>/fields.csv --output-csv ASO/<App>/v<version>/OUTPUT.csv
 
 # Phase 5 — validate composed fields
-python scripts/validate_fields.py --in ASO/<App>/<locale>/fields.csv \
+python scripts/validate_fields.py --in ASO/<App>/v<version>/<locale>/fields.csv \
   --config ASO/<App>/config.json --locale <locale>
 
 # Phase 5 — feature-compliance check (bullets + prose paragraphs vs features.md)
 python scripts/parse_features.py --in ASO/<App>/features.md \
-  --check-description ASO/<App>/<locale>/fields.csv --locale <locale>
+  --check-description ASO/<App>/v<version>/<locale>/fields.csv --locale <locale>
+
+# Phase 0d / runtime — push or pull the app to Google Drive (rclone)
+python scripts/sync.py --config ASO/<App>/config.json --to-drive
+python scripts/sync.py --config ASO/<App>/config.json --from-drive
 
 # smoke test — synthetic 3-competitor / 1-locale end-to-end (no network)
 python scripts/smoke_test.py
 ```
 
 Pure standard library, no dependencies. Python ≥3.7.
-`smoke_test.py` does not exercise Phase 1 (it needs the AppTweak API);
-test the fetcher manually against a known app/locale before relying on it.
+
+External tools used by the skill (install only what you need):
+- `rclone` — Phase 0d / sync.py only. Install per [rclone.org/downloads](https://rclone.org/downloads/).
+  Not needed if you only work on one machine.
+
+`smoke_test.py` does not exercise Phase 1 (it needs the AppTweak API) or
+sync.py (it needs an rclone remote); test those manually against a known
+app/locale/remote before relying on them.
 
 ## Getting started
 
@@ -128,9 +138,36 @@ test the fetcher manually against a known app/locale before relying on it.
 2. Open the project in Claude. The skill auto-triggers on ASO requests
    ("do keywords for the German store", "add a new language to the ASO
    sheet", etc.).
-3. The first action the skill takes is **Phase 0** — three sub-prompts
-   that collect your AppTweak key, app + competitor IDs, and features.
-   Nothing else has to be configured first.
+3. The first action the skill takes is **Phase 0** — four interactive
+   sub-prompts in this order:
+   - **0a** — App name + competitors + locales → creates
+     `ASO/<App>/config.json` and the app folder.
+   - **0b** — AppTweak API key → `.env` at the project root.
+   - **0c** — Free / pro features + workflow → `ASO/<App>/features.md`.
+   - **0d** *(optional)* — Google Drive sync via rclone. Lets the same
+     project open identically on another laptop / Gmail account.
+
+## Multi-machine / multi-account flow
+
+Drive sync (Phase 0d) is the bridge between machines:
+
+```
+Machine A                                Machine B (new laptop)
+─────────                                ──────────────────────
+brew install rclone                      brew install rclone
+rclone config  → "gdrive"                rclone config  → "gdrive"
+   (sign in with your Google account)       (sign in with the SAME account)
+                                          git clone <skill repo>
+sync.py --to-drive                        sync.py --from-drive
+   → ASO/ uploaded                          ← ASO/ downloaded
+```
+
+The Google account is configured per-machine in `rclone config` (each
+machine gets its own OAuth token, stored locally in
+`~/.config/rclone/rclone.conf`). `config.rclone_remote` only stores the
+remote NAME, not the account — so the same config file works for every
+machine the user authorises against the same Google account. To switch
+to a different Gmail, reconfigure the remote.
 
 ## Layout
 
@@ -141,7 +178,7 @@ aso-keyword-pipeline/
 ├── assets/            config.schema.md, configs/{_template.json, _template.features.md}
 └── scripts/           fetch_keywords.py, aso_score.py, fill_semantic.py,
                         parse_features.py, write_fields.py, validate_fields.py,
-                        smoke_test.py
+                        sync.py, smoke_test.py
 ```
 
 ## License

@@ -77,7 +77,7 @@ the locale's native language** and describing **only** features in the config.
 ## Output format (`fields.csv`)
 
 `fields.csv` is **locale-specific** — exactly one row, six columns, written
-to `ASO/<AppName>/<locale>/fields.csv`:
+to `ASO/<AppName>/v<version>/<locale>/fields.csv`:
 
 ```
 locale,title,subtitle,keywords,promo,description
@@ -94,8 +94,8 @@ python scripts/write_fields.py \
   --subtitle "<subtitle>" \
   --keywords "<comma,separated,tokens>" \
   --promo "<promo text>" \
-  --description-file ASO/<AppName>/<locale>/description.txt \
-  --out ASO/<AppName>/<locale>/fields.csv \
+  --description-file ASO/<AppName>/v<version>/<locale>/description.txt \
+  --out ASO/<AppName>/v<version>/<locale>/fields.csv \
   --output-csv ASO/<AppName>/OUTPUT.csv
 ```
 
@@ -113,7 +113,7 @@ The validator runs against the locale-specific `fields.csv`, not
 
 ```bash
 python scripts/validate_fields.py \
-  --in ASO/<AppName>/<locale>/fields.csv \
+  --in ASO/<AppName>/v<version>/<locale>/fields.csv \
   --config ASO/<AppName>/config.json \
   --locale <locale>
 ```
@@ -142,7 +142,7 @@ After the validator passes, run a feature-compliance spot-check against
 ```bash
 python scripts/parse_features.py \
   --in ASO/<AppName>/features.md \
-  --check-description ASO/<AppName>/<locale>/fields.csv \
+  --check-description ASO/<AppName>/v<version>/<locale>/fields.csv \
   --locale <locale>
 ```
 

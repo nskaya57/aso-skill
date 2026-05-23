@@ -94,34 +94,47 @@ If the user has not provided a config, build one with them first using
 
 ---
 
-## The pipeline (6 phases = 6 sub-prompts)
+## The pipeline (6 phases — 4 interactive sub-prompts + the rest scripts)
 
-Each phase is self-contained: it states its input file, its output file, and
-what to do. Run them in order. For a fresh context you can run a single phase
-by reading only that phase's reference file plus the config — that is the
-intended "sub-prompt" usage.
+Each phase is self-contained: it states its input file, its output file,
+and what to do. Run them in order. For a fresh context you can run a
+single phase by reading only that phase's reference file plus the config
+— that is the intended "sub-prompt" usage.
 
 | Phase | Reference | Input → Output | Who decides |
 |---|---|---|---|
-| 0. Prepare | `references/phase-0-prepare.md` | user answers → `.env` + `config.json` + `features.md` | model (interactive) |
+| 0. Prepare | `references/phase-0-prepare.md` | user answers → `config.json` + `.env` + `features.md` + (optional) rclone remote | model (interactive, 4 sub-prompts) |
 | 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` | `scripts/fetch_keywords.py` (reads `.env`) |
-| 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` | script |
-| 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` | script |
-| 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` | `fill_semantic.py` + `aso_score.py --stage total` |
+| 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` | `aso_score.py --stage merge` |
+| 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` | `aso_score.py --stage filter` |
+| 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` (4a/4b/4c) | `fill_semantic.py` × 2 + `aso_score.py --stage total` |
 | 5. Compose | `references/phase-5-compose.md` | `scored.csv` → `fields.csv` + Description | `write_fields.py` + `validate_fields.py` + `parse_features.py --check-description` |
 
-Always read the relevant phase reference file before doing that phase — the
-rules and exact formats live there, deliberately out of this overview so the
-overview stays short and stable.
+A separate cross-cutting helper sits alongside the pipeline:
+
+- `scripts/sync.py` — Phase 0d / runtime: push or pull the entire
+  `ASO/<App>/` tree to/from a Google Drive rclone remote.
+
+Always read the relevant phase reference file before doing that phase —
+the rules and exact formats live there, deliberately out of this
+overview so the overview stays short and stable.
 
 ### Phase 0 — Prepare (one-time per app)
-Three interactive sub-prompts that fill the inputs every later phase
-depends on: (0a) the AppTweak API key into `.env`; (0b) the app id +
-competitor ids + target locales into `config.json`; (0c) the free
-features, pro features, workflow narrative and audiences into
-`features.md`. Phase 4 reads `features.md` for semantic judgement, Phase 5
-writes the Description only from it. Never paste app ids or features into
-this conversation — collect them with the user via the Phase 0 prompts
+Four interactive sub-prompts that fill the inputs every later phase
+depends on:
+- **0a** — App + competitors + locales → `ASO/<AppName>/config.json`.
+  Creates the app folder; everything else hangs off it.
+- **0b** — AppTweak API key → `.env` at project root (one shared `.env`
+  even if you have multiple apps).
+- **0c** — Free features, pro features, workflow narrative and audiences
+  → `ASO/<AppName>/features.md`. Phase 4 reads it for semantic
+  judgement, Phase 5 writes the Description only from it.
+- **0d** *(optional)* — rclone Drive remote. Lets the same app open
+  identically from another laptop / Gmail / OS. Skip if you only work
+  on one machine.
+
+Never paste app ids, features, or API keys into this conversation —
+collect them with the user via the Phase 0 prompts
 and write them to disk. See `phase-0-prepare.md`.
 
 ### Phase 1 — Collect

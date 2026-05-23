@@ -2,7 +2,10 @@
   "app_name": "",
   "app_store_id": "",
   "play_package": "",
+  "current_version": "1.0.0",
   "root_folder": "ASO",
+  "drive_root": "ASO",
+  "rclone_remote": "",
   "apptweak_key_env": "APPTWEAK_API_KEY",
 
   "competitors": [],
