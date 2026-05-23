@@ -183,4 +183,4 @@ aso-keyword-pipeline/
 
 ## License
 
-MIT (or your preference — set before publishing).
+MIT — see [LICENSE](LICENSE).

@@ -191,8 +191,92 @@ def main():
         assert "User opens" in parsed["workflow"]
         assert parsed["audiences"] == ["nurses", "firefighters"]
 
+        # ---------- P1-5: competitor_columns config-driven guard ----------
+        # Tamper with merged.csv: add an unexpected column → must FAIL
+        bad_merged = os.path.join(tmp, "merged.bad.csv")
+        with open(merged) as fin, open(bad_merged, "w", newline="") as fout:
+            r = csv.DictReader(fin)
+            fnames = list(r.fieldnames) + ["StrayColumn"]
+            w = csv.DictWriter(fout, fieldnames=fnames)
+            w.writeheader()
+            for row in r:
+                row["StrayColumn"] = "x"
+                w.writerow(row)
+        bad_filter = os.path.join(tmp, "filtered.bad.csv")
+        r = subprocess.run([sys.executable, sc, "--stage", "filter",
+                            "--in", bad_merged, "--config", cfg_path,
+                            "--locale", "en-US", "--out", bad_filter],
+                           capture_output=True, text=True)
+        assert r.returncode != 0, "expected stray-column to FAIL filter stage"
+        assert "StrayColumn" in r.stderr or "unexpected" in r.stderr.lower(), \
+            f"stray-column error should name the column. stderr={r.stderr[:200]}"
+
+        # ---------- P1-7: merge raw JSON shape guard ----------
+        # Drop a malformed raw JSON in raw_dir → merge must FAIL loudly
+        bad_raw_dir = os.path.join(tmp, "raw_bad")
+        shutil.copytree(raw_dir, bad_raw_dir)
+        with open(os.path.join(bad_raw_dir, "Rival1.json"), "w") as f:
+            json.dump({"app_id": "x", "app_name": "Rival1",
+                       "keywords": [{"foo": "bar"}]}, f)  # missing keyword/ranking
+        r = subprocess.run([sys.executable, sc, "--stage", "merge",
+                            "--raw-dir", bad_raw_dir, "--config", cfg_path,
+                            "--out", os.path.join(tmp, "merged.bad2.csv")],
+                           capture_output=True, text=True)
+        assert r.returncode != 0, "malformed raw JSON should FAIL merge"
+        assert "missing" in (r.stderr + r.stdout).lower(), \
+            f"merge error should mention 'missing'. out={r.stderr or r.stdout}"
+
+        # ---------- P0-3: native-language check (DE description in EN → FAIL) ----------
+        # Reuse the existing cfg but add a de-DE locale, then write a
+        # fields.csv with an English description for de-DE — must FAIL.
+        cfg_de = json.loads(open(cfg_path).read())
+        cfg_de["locales"]["de-DE"] = {"country": "de", "device": "iphone",
+                                      "allowed_scripts": ["latin"],
+                                      "self_indexed": []}
+        cfg_de_path = os.path.join(tmp, "config.de.json")
+        with open(cfg_de_path, "w") as f:
+            json.dump(cfg_de, f)
+        fields_de_bad = os.path.join(tmp, "fields.de.bad.csv")
+        run([sys.executable, wf,
+             "--locale", "de-DE",
+             "--title", "Schichtplan Kalender - Acme",
+             "--subtitle", "Dienstplan Stunden",  # short → fine
+             "--keywords",
+             "nurse,roster,duty,job,employee,scheduling,time,maker,calender,personal,hour,rotation,overtime",
+             "--promo", "Track your shifts in real time with our app.",
+             "--description",
+             "Track every shift, every break, every dollar. Your work calendar. "
+             "Plan your rota and log your hours. Built for nurses and shift "
+             "workers. All your shifts in one place with the best app.",
+             "--out", fields_de_bad])
+        r = subprocess.run([sys.executable, vf, "--in", fields_de_bad,
+                            "--config", cfg_de_path, "--locale", "de-DE"],
+                           capture_output=True, text=True)
+        assert r.returncode != 0, "English-in-DE description should FAIL"
+        assert "English" in r.stdout or "english" in r.stdout.lower(), \
+            f"native-language failure should mention English. out={r.stdout[:300]}"
+
+        # ---------- P1-4: cross-field plural pair (subtitle 'hours' + KF 'hour') ----------
+        fields_dup = os.path.join(tmp, "fields.dup.csv")
+        run([sys.executable, wf,
+             "--locale", "en-US",
+             "--title", "Shift Planner Calendar - Acme",
+             "--subtitle", "Work Hours & Tracker",  # contains 'hours'
+             "--keywords",
+             # 'hour' is the singular of 'hours' from subtitle → cross-field pair
+             "nurse,roster,duty,job,employee,scheduling,time,maker,calender,personal,hour,rotation,overtime",
+             "--promo", "Track shifts in real time.",
+             "--description", "Track shifts.",
+             "--out", fields_dup])
+        r = subprocess.run([sys.executable, vf, "--in", fields_dup,
+                            "--config", cfg_path, "--locale", "en-US"],
+                           capture_output=True, text=True)
+        assert r.returncode != 0, "cross-field hour↔hours should FAIL"
+        assert "Cross-field" in r.stdout or "cross-field" in r.stdout.lower(), \
+            f"validator should flag cross-field. out={r.stdout[:300]}"
+
         print("\nSMOKE OK — merge, filter, fill, total, write, validate, "
-              "parse_features all green.")
+              "parse_features, P1-5/P1-7/P0-3/P1-4 guards all green.")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

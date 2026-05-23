@@ -145,8 +145,25 @@ def parse_rank(cell):
         return None
 
 
-def competitor_columns(fieldnames):
-    return [c for c in fieldnames if c not in RESERVED_COLS]
+def competitor_columns(fieldnames, cfg):
+    """Return competitor column names in config order. Fail loud if the
+    CSV's non-reserved columns don't exactly match config.competitors
+    (catches stray columns that would otherwise be treated as a competitor
+    and silently corrupt the score)."""
+    expected = [c["name"] for c in cfg.get("competitors", [])]
+    actual = [c for c in fieldnames if c not in RESERVED_COLS]
+    if not expected:
+        sys.exit("ERROR: config.competitors is empty (Phase 0a).")
+    if set(actual) != set(expected):
+        missing = sorted(set(expected) - set(actual))
+        extra   = sorted(set(actual)   - set(expected))
+        msg = ["ERROR: CSV competitor columns don't match config.competitors:"]
+        if missing: msg.append(f"  missing in CSV: {missing}")
+        if extra:   msg.append(f"  unexpected in CSV: {extra}")
+        msg.append(f"  expected (config order): {expected}")
+        msg.append(f"  actual:                  {actual}")
+        sys.exit("\n".join(msg))
+    return expected
 
 
 def compute_competitor(rank_cells, scoring, n_competitors):
@@ -182,8 +199,24 @@ def stage_merge(args):
 
     name_lookup = {norm(n): n for n in comp_names}
     for fp in files:
-        with open(fp, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(fp, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            sys.exit(f"ERROR: {fp} is not valid JSON: {e}")
+
+        # Shape validation (P1-7) — guard against malformed raw input
+        if not isinstance(data, dict):
+            sys.exit(f"ERROR: {fp} top-level is not a JSON object")
+        if "keywords" not in data or not isinstance(data["keywords"], list):
+            sys.exit(f"ERROR: {fp} missing 'keywords' array")
+        for i, kw in enumerate(data["keywords"]):
+            if not isinstance(kw, dict):
+                sys.exit(f"ERROR: {fp} keywords[{i}] is not a JSON object")
+            if "keyword" not in kw or "ranking" not in kw:
+                sys.exit(f"ERROR: {fp} keywords[{i}] missing 'keyword' or "
+                         f"'ranking' field")
+
         fname = os.path.splitext(os.path.basename(fp))[0]
         cname = name_lookup.get(norm(data.get("app_name", fname))) \
             or name_lookup.get(norm(fname))
@@ -192,7 +225,7 @@ def stage_merge(args):
                      f"(app_name/filename '{fname}'). Fix the config or filename.")
         if per_comp[cname]:
             sys.exit(f"ERROR: two raw files map to competitor '{cname}'.")
-        for kw in data.get("keywords", []):
+        for kw in data["keywords"]:
             k = norm(kw.get("keyword"))
             if not k:
                 continue
@@ -245,7 +278,7 @@ def stage_filter(args):
     with open(args.infile, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-        comp_cols = competitor_columns(reader.fieldnames)
+        comp_cols = competitor_columns(reader.fieldnames, cfg)
     n_comp = len(comp_cols)
 
     kept = []
@@ -281,8 +314,18 @@ def stage_filter(args):
         for row in kept:
             w.writerow({k: row.get(k, "") for k in out_fields})
     print(f"filter: kept {len(kept)} / {len(rows)}  dropped={dropped}  -> {args.out}")
+    # P1-6: warn when self_indexed eats more than 60% of the input — almost
+    # always means the live Title/Subtitle changed since the list was last
+    # refreshed (Phase 5 writes self_indexed back; if you bumped the version
+    # or shipped a new listing without rerunning, it goes stale).
+    if rows and dropped["self"] > 0.60 * len(rows):
+        ratio = dropped["self"] / len(rows)
+        print(f"  WARN: self_indexed dropped {dropped['self']} of {len(rows)} "
+              f"({ratio:.0%}). Likely a stale self_indexed list — refresh it "
+              f"to match the current live Title/Subtitle, then rerun "
+              f"Phase 3.", file=sys.stderr)
     print("  next: fill the empty 'semantic' column with one of {10,8,7,5,4,1} "
-          "per row (Phase 4 rubric), save as *.semantic.csv, then run --stage total.")
+          "per row (use scripts/fill_semantic.py), then run --stage total.")
 
 
 def stage_total(args):
@@ -292,7 +335,7 @@ def stage_total(args):
     with open(args.infile, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-        comp_cols = competitor_columns(reader.fieldnames)
+        comp_cols = competitor_columns(reader.fieldnames, cfg)
     n_comp = len(comp_cols)
 
     errors = []

@@ -7,12 +7,15 @@ Checks (App Store):
   - Keyword field <= keywords limit and >= keywords_min
   - Promo <= promo limit, Description <= description limit
   - No token repeated across Title / Subtitle / Keyword field
-  - No singular/plural pair inside the keyword field
+  - No singular/plural pair WITHIN the keyword field
+  - No singular/plural pair ACROSS Title / Subtitle / Keyword (P1-4)
   - No stop word / 'app' / 'free' inside the keyword field
   - Keyword field is comma-separated with NO spaces around commas
+  - Description (and promo) is in the locale's native language —
+    English-function-word density check for non-en-* locales (P0-3)
 
-Reads fields.csv (one row for the locale) + the config. Exits non-zero on any
-violation so the pipeline cannot mark a locale "done" while broken.
+Reads fields.csv (one row for the locale) + the config. Exits non-zero on
+any violation so the pipeline cannot mark a locale "done" while broken.
 
 Pure standard library.
 """
@@ -24,8 +27,11 @@ import sys
 
 
 def load_config(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        sys.exit(f"ERROR: config not found at {path}. Run Phase 0a first.")
 
 
 def norm(s):
@@ -107,6 +113,94 @@ def plural_pairs(kw_tokens, suffixes):
             seen.add(key)
             out.append((a, b))
     return out
+
+
+def cross_field_plural_pairs(field_tokens, suffixes):
+    """field_tokens: {field_name: set_of_tokens}. Returns list of
+    (singular, plural, field_a, field_b) for plural pairs that live in
+    DIFFERENT fields (e.g. subtitle has 'hours', keywords has 'hour').
+    Pairs already inside one field are not re-reported here — those are
+    caught by within-field `plural_pairs`."""
+    if not suffixes:
+        return []
+    field_names = list(field_tokens.keys())
+    flagged = []
+    seen = set()
+    # Build reverse index: token → fields containing it
+    token_fields = {}
+    for fname, toks in field_tokens.items():
+        for t in toks:
+            token_fields.setdefault(t, set()).add(fname)
+
+    for t, fields_with_t in token_fields.items():
+        for suffix in suffixes:
+            cand = t + suffix
+            if cand == t or cand not in token_fields:
+                continue
+            fields_with_cand = token_fields[cand]
+            # Cross-field only — at least one field pair (fa, fb) with fa != fb
+            for fa in fields_with_t:
+                for fb in fields_with_cand:
+                    if fa == fb:
+                        continue
+                    key = tuple(sorted((t, cand))) + tuple(sorted((fa, fb)))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    flagged.append((t, cand, fa, fb))
+    return flagged
+
+
+# --- Native-language heuristic (P0-3) --------------------------------------
+# Per-locale function-word lists. For a non-en-* locale, if the
+# description (or promo) text is dominated by these English function
+# words, that's a strong signal the writer forgot to translate.
+EN_FUNCTION_WORDS = {
+    "the", "and", "your", "for", "with", "of", "to", "in", "on", "at",
+    "by", "my", "you", "this", "that", "is", "are", "was", "were", "be",
+    "been", "have", "has", "had", "will", "would", "can", "could",
+    "should", "from", "an", "as", "or", "if", "but", "not", "no", "do",
+    "does", "did", "we", "our", "us", "they", "them", "their", "it",
+    "its", "all", "any", "every", "each", "more", "less", "most", "least",
+    "very", "just", "than", "then", "so", "into", "out", "up", "down",
+    "over", "under", "after", "before", "during", "while", "until",
+    "since", "without", "between", "about", "what", "when", "where",
+    "why", "who", "how", "which", "shift", "shifts",  # common ASO loans
+    "work", "calendar", "track", "tracking", "tracker",
+}
+
+# Locales where we DO want the English check active (i.e. we suspect
+# user might write English by mistake). These overlap with the EN list
+# because en-* locales obviously skip — see is_native_check_relevant().
+NATIVE_CHECK_DEFAULT_THRESHOLD = 0.10  # >10% EN-function-word density → FAIL
+NATIVE_CHECK_MIN_TOKENS = 20  # too few tokens → skip (not enough signal)
+NATIVE_CHECK_TOKEN_RE = re.compile(r"[a-zA-ZäöüÄÖÜßçğıöşüÇĞİÖŞÜа-яё]+")
+
+
+def is_en_locale(locale):
+    return locale.lower().startswith("en")
+
+
+def native_language_check(text, locale, cfg):
+    """Return (ratio, count, total) or None if check was skipped.
+    Caller decides PASS/FAIL based on threshold."""
+    if is_en_locale(locale):
+        return None
+    nlc = cfg.get("native_language_check") or {}
+    words = set(map(str.lower, nlc.get("english_function_words")
+                    or EN_FUNCTION_WORDS))
+    toks = [t.lower() for t in NATIVE_CHECK_TOKEN_RE.findall(text)]
+    if len(toks) < NATIVE_CHECK_MIN_TOKENS:
+        return None
+    hits = sum(1 for t in toks if t in words)
+    return hits / len(toks), hits, len(toks)
+
+
+def native_check_threshold(cfg, locale):
+    nlc = cfg.get("native_language_check") or {}
+    per_locale = nlc.get("thresholds") or {}
+    return per_locale.get(locale, nlc.get("default_threshold",
+                                          NATIVE_CHECK_DEFAULT_THRESHOLD))
 
 
 def main():
@@ -219,6 +313,39 @@ def main():
           f"Subtitle<->Keyword duplicate tokens: {sorted(dup_sk)}")
     check(not dup_ts, "No Title<->Subtitle duplicate tokens",
           f"Title<->Subtitle duplicate tokens: {sorted(dup_ts)}")
+
+    # P1-4: cross-field singular/plural pairs (subtitle "hours" vs KF "hour")
+    if suffixes:
+        # Apply same appname-discard policy
+        field_tokens = {
+            "title":    title_tok - appname_tokens,
+            "subtitle": sub_tok   - appname_tokens,
+            "keywords": kw_set    - appname_tokens,
+        }
+        cross_pairs = cross_field_plural_pairs(field_tokens, suffixes)
+        if cross_pairs:
+            details = [f"{a}↔{b} ({fa}/{fb})" for a, b, fa, fb in cross_pairs]
+            problems.append(
+                f"Cross-field singular/plural pairs: {', '.join(details)}")
+        else:
+            oks.append("No cross-field singular/plural pairs")
+
+    # P0-3: native-language check (description + promo) for non-en locales
+    threshold = native_check_threshold(cfg, args.locale)
+    for field_name, text in (("Description", desc), ("Promo", promo)):
+        result = native_language_check(text, args.locale, cfg)
+        if result is None:
+            continue  # en-* locale or too-short text → skip
+        ratio, hits, total = result
+        if ratio > threshold:
+            problems.append(
+                f"{field_name} appears to be in English, not {args.locale} — "
+                f"{hits}/{total} tokens are English function words "
+                f"({ratio:.0%} > {threshold:.0%} threshold). Translate it.")
+        else:
+            oks.append(
+                f"{field_name} reads as {args.locale}: {hits}/{total} EN "
+                f"function-word tokens ({ratio:.0%} ≤ {threshold:.0%})")
 
     print(f"=== validate {args.locale} ===")
     for o in oks:
