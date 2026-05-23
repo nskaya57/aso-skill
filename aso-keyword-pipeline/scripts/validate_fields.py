@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+validate_fields.py — prove a composed locale's fields satisfy every rule.
+
+Checks (App Store):
+  - Title <= title limit, Subtitle <= subtitle limit
+  - Keyword field <= keywords limit and >= keywords_min
+  - Promo <= promo limit, Description <= description limit
+  - No token repeated across Title / Subtitle / Keyword field
+  - No singular/plural pair inside the keyword field
+  - No stop word / 'app' / 'free' inside the keyword field
+  - Keyword field is comma-separated with NO spaces around commas
+
+Reads fields.csv (one row for the locale) + the config. Exits non-zero on any
+violation so the pipeline cannot mark a locale "done" while broken.
+
+Pure standard library.
+"""
+import argparse
+import csv
+import json
+import re
+import sys
+
+
+def load_config(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def norm(s):
+    return (s or "").strip().lower()
+
+
+def word_tokens(text):
+    return [t for t in re.split(r"[\s,]+", norm(text)) if t]
+
+
+def plural_pairs(kw_tokens):
+    """Return list of (singular, plural) pairs present in the keyword tokens."""
+    s = set(kw_tokens)
+    pairs = []
+    for w in kw_tokens:
+        for plural in (w + "s", w + "es"):
+            if plural in s and plural != w:
+                pairs.append((w, plural))
+    # de-dup symmetric hits
+    seen = set()
+    out = []
+    for a, b in pairs:
+        key = tuple(sorted((a, b)))
+        if key not in seen:
+            seen.add(key)
+            out.append((a, b))
+    return out
+
+
+def main():
+    p = argparse.ArgumentParser(description="Validate composed ASO fields")
+    p.add_argument("--in", dest="infile", required=True, help="fields.csv")
+    p.add_argument("--config", required=True)
+    p.add_argument("--locale", required=True)
+    args = p.parse_args()
+
+    cfg = load_config(args.config)
+    lim = cfg["field_limits"]
+    stop = {norm(s) for s in cfg.get("stopwords", [])} | {"app", "free"}
+
+    with open(args.infile, "r", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if norm(r.get("locale")) == norm(args.locale)]
+    if not rows:
+        sys.exit(f"ERROR: no row for locale {args.locale} in {args.infile}")
+    row = rows[-1]
+
+    title = row.get("title", "")
+    subtitle = row.get("subtitle", "")
+    keywords = row.get("keywords", "")
+    promo = row.get("promo", "")
+    desc = row.get("description", "")
+
+    problems = []
+    oks = []
+
+    def check(cond, ok_msg, bad_msg):
+        (oks if cond else problems).append(ok_msg if cond else bad_msg)
+
+    # length limits
+    check(len(title) <= lim["title"],
+          f"Title {len(title)}/{lim['title']}",
+          f"Title TOO LONG {len(title)}/{lim['title']}")
+    check(len(subtitle) <= lim["subtitle"],
+          f"Subtitle {len(subtitle)}/{lim['subtitle']}",
+          f"Subtitle TOO LONG {len(subtitle)}/{lim['subtitle']}")
+    check(len(keywords) <= lim["keywords"],
+          f"Keywords {len(keywords)}/{lim['keywords']}",
+          f"Keywords TOO LONG {len(keywords)}/{lim['keywords']}")
+    check(len(keywords) >= lim.get("keywords_min", 0),
+          f"Keywords fill >= {lim.get('keywords_min', 0)} ({len(keywords)})",
+          f"Keywords UNDERFILLED {len(keywords)} < {lim.get('keywords_min', 0)}")
+    check(len(promo) <= lim["promo"],
+          f"Promo {len(promo)}/{lim['promo']}",
+          f"Promo TOO LONG {len(promo)}/{lim['promo']}")
+    check(len(desc) <= lim["description"],
+          f"Description {len(desc)}/{lim['description']}",
+          f"Description TOO LONG {len(desc)}/{lim['description']}")
+
+    # keyword field format: comma-separated, no spaces
+    if " " in keywords:
+        problems.append("Keyword field contains a SPACE (use comma-only, no spaces)")
+    else:
+        oks.append("Keyword field has no spaces")
+
+    kw_tokens = [t.strip() for t in norm(keywords).split(",") if t.strip()]
+
+    # stopwords in keyword field
+    bad_stop = [t for t in kw_tokens if t in stop]
+    check(not bad_stop,
+          "No stop/generic words in keyword field",
+          f"Stop/generic words in keyword field: {bad_stop}")
+
+    # plural pairs in keyword field
+    pairs = plural_pairs(kw_tokens)
+    check(not pairs,
+          "No singular/plural pairs in keyword field",
+          f"Singular/plural pairs in keyword field: {pairs}")
+
+    # cross-field duplication (token level)
+    title_tok = set(word_tokens(title))
+    sub_tok = set(word_tokens(subtitle))
+    kw_set = set(kw_tokens)
+    dup_ts = title_tok & sub_tok
+    dup_tk = title_tok & kw_set
+    dup_sk = sub_tok & kw_set
+    # brand token in title is expected; ignore the app name itself
+    appname = norm(cfg.get("app_name", ""))
+    for s in (dup_ts, dup_tk, dup_sk):
+        s.discard(appname)
+    check(not dup_tk, "No Title<->Keyword duplicate tokens",
+          f"Title<->Keyword duplicate tokens: {sorted(dup_tk)}")
+    check(not dup_sk, "No Subtitle<->Keyword duplicate tokens",
+          f"Subtitle<->Keyword duplicate tokens: {sorted(dup_sk)}")
+    check(not dup_ts, "No Title<->Subtitle duplicate tokens",
+          f"Title<->Subtitle duplicate tokens: {sorted(dup_ts)}")
+
+    print(f"=== validate {args.locale} ===")
+    for o in oks:
+        print(f"  PASS  {o}")
+    for pr in problems:
+        print(f"  FAIL  {pr}")
+    if problems:
+        print(f"\nRESULT: FAIL ({len(problems)} violation(s)) — fix and re-run.")
+        sys.exit(1)
+    print("\nRESULT: PASS — locale fields are valid.")
+
+
+if __name__ == "__main__":
+    main()

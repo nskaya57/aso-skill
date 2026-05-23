@@ -1,0 +1,115 @@
+{
+  "app_name": "ShiftGo",
+  "app_store_id": "",
+  "play_package": "net.shiftgo.app",
+  "root_folder": "ASO",
+  "apptweak_key_env": "APPTWEAK_API_KEY",
+
+  "competitors": [
+    { "name": "Supershift",      "app_id": "" },
+    { "name": "Spoke",           "app_id": "" },
+    { "name": "MyShiftPlanner",  "app_id": "645662133" },
+    { "name": "SHIFTAR",         "app_id": "" },
+    { "name": "Shifter",         "app_id": "" }
+  ],
+
+  "brand_terms": [
+    "shiftgo", "supershift", "spoke", "myshiftplanner", "my shift planner",
+    "shiftar", "shifter", "nursegrid", "nurse grid", "homebase", "deputy",
+    "7shifts", "sling", "when i work", "workjam", "quinyx", "shiftsmart",
+    "shiftkey", "shiftboard", "blink", "blue light card", "jobber"
+  ],
+  "keep_terms": [],
+
+  "stopwords": [
+    "app", "apps", "free", "the", "a", "an", "for", "with", "my", "and",
+    "of", "to", "in", "on", "your", "you", "is", "are", "best", "new",
+    "online", "mobile", "pro", "ios", "iphone", "ipad", "android"
+  ],
+
+  "locales": {
+    "en-US": {
+      "country": "us",
+      "device": "iphone",
+      "allowed_scripts": ["latin"],
+      "self_indexed": ["work", "shift", "calendar", "shiftgo", "schedule", "planner", "hours", "tracker"]
+    },
+    "en-GB": {
+      "country": "gb",
+      "device": "iphone",
+      "allowed_scripts": ["latin"],
+      "self_indexed": ["work", "shift", "calendar", "shiftgo", "schedule", "planner", "hours", "tracker"]
+    },
+    "de-DE": {
+      "country": "de",
+      "device": "iphone",
+      "allowed_scripts": ["latin"],
+      "self_indexed": ["schichtplan", "kalender", "shiftgo", "dienstplan", "stunden", "verdienst"]
+    },
+    "tr-TR": {
+      "country": "tr",
+      "device": "iphone",
+      "allowed_scripts": ["latin"],
+      "self_indexed": []
+    }
+  },
+
+  "audiences": [
+    "nurse", "nurses", "healthcare", "firefighter", "police", "hospitality",
+    "restaurant", "retail", "driver", "warehouse", "security", "carer",
+    "factory", "ambulance"
+  ],
+
+  "features": {
+    "free": [
+      "live shift, break and earnings tracking in real time",
+      "live break timer with paid and unpaid breaks tracked separately",
+      "hourly or fixed pay with automatic overtime calculation",
+      "daily, weekly and monthly overtime rules (tiered or fixed)",
+      "multi-currency support, 24+ currencies",
+      "work shift calendar: start/end time, breaks, rotations, repeating shifts",
+      "week, month and year calendar views",
+      "upcoming shifts on the dashboard",
+      "colour-coded shifts",
+      "public holidays for 100+ countries",
+      "birthdays on calendar",
+      "religious calendars: Muslim, Christian, Orthodox, Jewish, Hindu (English)",
+      "paint mode: drag-select date ranges to bulk copy or delete shifts",
+      "paint mode: tap a date with a template to drop a shift instantly",
+      "templates with one-tap add (icon, colour, pay rate, breaks remembered)",
+      "reminders with custom notification time per reminder and per shift",
+      "extra income logging: tips, bonuses, side gigs",
+      "reports: shift counts, hours and earnings by week, month or year",
+      "automatic overtime calculation in reports"
+    ],
+    "pro": [
+      "cloud sync: back up and restore on any device",
+      "Apple Calendar sync (iCloud)",
+      "Google Calendar sync",
+      "calendar sharing (shifts only) with family or friends via live link",
+      "PDF export of reports and calendar",
+      "custom date-range filtering in reports"
+    ]
+  },
+
+  "scoring": {
+    "rank_strength": [
+      { "max": 5,   "value": 1.00 },
+      { "max": 10,  "value": 0.80 },
+      { "max": 25,  "value": 0.50 },
+      { "max": 50,  "value": 0.25 },
+      { "max": 100, "value": 0.10 }
+    ],
+    "w_cov": 0.5,
+    "w_str": 0.5
+  },
+
+  "field_limits": {
+    "title": 30,
+    "subtitle": 30,
+    "keywords": 100,
+    "keywords_min": 90,
+    "promo": 170,
+    "description": 4000
+  }
+}
