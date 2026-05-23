@@ -92,7 +92,7 @@ If the user has not provided a config, build one with them first using
 
 ---
 
-## The pipeline (5 phases = 5 sub-prompts)
+## The pipeline (6 phases = 6 sub-prompts)
 
 Each phase is self-contained: it states its input file, its output file, and
 what to do. Run them in order. For a fresh context you can run a single phase
@@ -101,6 +101,7 @@ intended "sub-prompt" usage.
 
 | Phase | Reference | Input → Output | Who decides |
 |---|---|---|---|
+| 0. Prepare | `references/phase-0-prepare.md` | user answers → `.env` + `config.json` + `features.md` | model (interactive) |
 | 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` | script/API |
 | 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` | script |
 | 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` | script |
@@ -110,6 +111,16 @@ intended "sub-prompt" usage.
 Always read the relevant phase reference file before doing that phase — the
 rules and exact formats live there, deliberately out of this overview so the
 overview stays short and stable.
+
+### Phase 0 — Prepare (one-time per app)
+Three interactive sub-prompts that fill the inputs every later phase
+depends on: (0a) the AppTweak API key into `.env`; (0b) the app id +
+competitor ids + target locales into `config.json`; (0c) the free
+features, pro features, workflow narrative and audiences into
+`features.md`. Phase 4 reads `features.md` for semantic judgement, Phase 5
+writes the Description only from it. Never paste app ids or features into
+this conversation — collect them with the user via the Phase 0 prompts
+and write them to disk. See `phase-0-prepare.md`.
 
 ### Phase 1 — Collect
 For each competitor in the config, fetch its best-100 ranked keywords for the

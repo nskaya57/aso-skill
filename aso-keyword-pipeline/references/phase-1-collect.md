@@ -15,8 +15,10 @@ read from disk and never depend on the API again.
 For each `competitor` in the config, request its top ranked keywords for the
 locale. Use the config values; do not hard-code:
 
-- API key: `config.apptweak_key` (or the environment variable named in the
-  config — never paste the key into output files).
+- API key: read from `.env` at project root, variable name from
+  `config.apptweak_key_env` (default `APPTWEAK_API_KEY`). If `.env` is
+  missing, run **Phase 0a** first. Never paste the key into output files,
+  CSVs, or chat. Send it only as the `x-apptweak-key` HTTP header.
 - App id: the competitor's store id.
 - Country / device: derived from the locale (e.g. `en-US` → country `us`,
   device `iphone`; `de-DE` → country `de`). The locale → (country, device)

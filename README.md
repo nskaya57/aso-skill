@@ -25,15 +25,24 @@ language it already finished. This skill makes that impossible.
 - **State lives in files.** Every phase reads its input from disk and writes
   its output to disk, so a wiped context is recoverable.
 
-## The 5-phase pipeline
+## The 6-phase pipeline
 
 | Phase | Reference | Input → Output |
 |---|---|---|
+| 0. Prepare | `references/phase-0-prepare.md` | user answers → `.env` + `config.json` + `features.md` |
 | 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` |
 | 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` |
 | 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` |
 | 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` |
 | 5. Compose | `references/phase-5-compose.md` | `scored.csv` → `fields.csv` + Description |
+
+**Phase 0** is interactive and one-time per app. It collects the three pieces
+of app-specific state the conversation must never carry: the AppTweak API key
+(`.env`), the app id + competitor ids + locales (`config.json`), and the
+free/pro features + workflow narrative (`features.md`). The first two are
+boilerplate; the third drives both the semantic rubric (Phase 4) and the
+native-language description (Phase 5), so the description never invents a
+feature.
 
 ## Scoring (Phase 4)
 
@@ -43,16 +52,20 @@ semantic   ∈ {10, 8, 7, 5, 4, 1}                                              
 total      = round( 0.6·semantic + 0.4·competitor , 1 )
 ```
 
-`semantic` is judged only against the config feature list. `competitor` doubles
-as the volume/traffic proxy (ASA popularity is floored at 5 and carries no
-signal). Rank→strength buckets and the coverage/strength weights are tunable in
-the config.
+`semantic` is judged only against `features.md` (Phase 0c output).
+`competitor` doubles as the volume/traffic proxy (ASA popularity is floored
+at 5 and carries no signal). Rank→strength buckets and the coverage/strength
+weights are tunable in the config.
 
 ## Use it for a new app
 
-1. Copy `assets/configs/shiftgo.json`, fill in app id, competitor ids, target
-   locales, brand terms, and the feature list. See `assets/config.schema.md`.
-2. Run the phases in order for one locale at a time.
+1. Run **Phase 0** — the skill walks you through three sub-prompts:
+   (0a) paste your AppTweak API key → saved to `.env` (gitignored);
+   (0b) name the app and its competitors (App Store IDs) + target locales
+   → written to `config.json`;
+   (0c) list free features, pro features, the workflow, and the audiences
+   → written to `features.md`.
+2. Run Phases 1–5 in order, **one locale at a time**.
 
 ## Scripts
 
@@ -74,8 +87,8 @@ Pure standard library, no dependencies.
 ```
 aso-keyword-pipeline/
 ├── SKILL.md
-├── references/        phase-1..5, drive-hierarchy
-├── assets/            config.schema.md, configs/shiftgo.json
+├── references/        phase-0..5, drive-hierarchy
+├── assets/            config.schema.md, configs/{shiftgo.json, _template.features.md}
 └── scripts/           aso_score.py, validate_fields.py
 ```
 

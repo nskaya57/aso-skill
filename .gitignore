@@ -2,3 +2,7 @@
 **/.DS_Store
 *.pyc
 __pycache__/
+
+# Phase 0a writes the AppTweak API key here — never commit
+.env
+**/.env

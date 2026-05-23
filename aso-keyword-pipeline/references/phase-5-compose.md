@@ -56,14 +56,20 @@ the locale's native language** and describing **only** features in the config.
   the English version — native, idiomatic copy. A German listing reads as if
   written by a German speaker; a Turkish listing, by a Turkish speaker. The
   store ranks the description's words, so native phrasing also matters for ASO.
-- Describe **only** features that exist in `config.features`. Never invent a
-  capability. If a feature is Pro-gated, label it as such per the config.
-- Structure: a one-line hook, then short benefit-led sections with bullet
-  lists grouped by feature area (tracking, calendar, paint mode, templates,
-  reminders, reports, Pro), then the subscription/legal lines, then an
-  audience paragraph naming the locale-relevant audiences from the config.
-- Weave the high-value keywords in naturally and in the native language;
-  do not keyword-stuff (the store penalises unnatural repetition).
+- Describe **only** features that appear in `features.md` (`## Free
+  features`, `## Pro features`, `## Workflow`). Never invent a capability.
+  Label Pro features as such per `features.md`. If `features.md` is missing
+  or thin, stop and run Phase 0c first; do not paraphrase from memory.
+- Open by adapting the `## Workflow` narrative from `features.md` into 1–2
+  sentences in the native language — that hook frames everything beneath.
+- Structure: a one-line workflow-derived hook, then short benefit-led
+  sections with bullet lists grouped by feature area (tracking, calendar,
+  paint mode, templates, reminders, reports, Pro), then the subscription/
+  legal lines, then an audience paragraph naming the locale-relevant
+  audiences from `features.md` → `## Audiences`.
+- Weave the high-value keywords (top of `scored.csv`) in naturally and in
+  the native language; do not keyword-stuff (the store penalises unnatural
+  repetition).
 - Localize concrete details: currency word ("dollar"/"Euro"/"pound"),
   market-specific holidays (e.g. "UK bank holidays"), and audience terms
   that exist in that market.

@@ -6,9 +6,11 @@ shape below must be identical everywhere, so any phase can find its inputs
 without being told where they are.
 
 ```
+.env                                 # Phase 0a — AppTweak API key (gitignored)
 ASO/                                 # root (config.root_folder, default "ASO")
 └── <AppName>/                       # e.g. ShiftGo/
-    ├── config.json                  # the app config (source of truth)
+    ├── config.json                  # Phase 0b — app id + competitors + locales
+    ├── features.md                  # Phase 0c — free/pro features + workflow + audiences
     ├── <locale>/                    # e.g. en-US/  en-GB/  de-DE/
     │   ├── raw/                      # Phase 1 output
     │   │   ├── <Competitor1>.json

@@ -19,10 +19,13 @@ should live in the conversation — only in this file.
 | `keep_terms` | array | Tokens to keep even if they look like brand/stop words (rare). |
 | `stopwords` | array | Generic auto-indexed + stop words to strip (`app`, `free`, `the`, `for`, …). |
 | `locales` | object | Map of locale → `{ country, device, allowed_scripts, self_indexed }`. |
-| `features` | object | The canonical feature list (free vs pro). The ONLY truth for `semantic` + Description. |
-| `audiences` | array | Audience terms the app serves (lift related keywords toward semantic 8). |
 | `scoring` | object | `{ rank_strength, w_cov, w_str }` — the deterministic competitor parameters. |
 | `field_limits` | object | `{ title, subtitle, keywords, keywords_min, promo, description }` char limits. |
+
+> `features`, `audiences` and the workflow narrative live in **`features.md`**
+> at the app root, not in this config — see `references/phase-0-prepare.md`
+> § 0c. Phase 4 reads it for semantic judgement; Phase 5 reads it for the
+> description.
 
 ## `locales` entry
 
@@ -61,15 +64,33 @@ Changing these changes every `competitor` score — so set them once, here, and
 leave them. `w_cov` + `w_str` must equal 1. Raise `w_cov` to reward keywords
 many rivals rank for; raise `w_str` to reward keywords rivals rank *highly*.
 
-## `features` block
+## `features.md` (not in this config)
 
-Group by tier; each entry is a short, concrete capability. Phase 4 judges
-relevancy only against this list; Phase 5 writes the Description only from it.
-Do not list a capability the app does not have.
+Features, audiences and workflow narrative live in **`features.md`** at the
+app root — created interactively in Phase 0c. Phase 4 reads it for the
+`semantic` rubric; Phase 5 reads it for the Description.
 
-```json
-"features": {
-  "free": ["live shift/break/earnings tracking", "automatic overtime", "..."],
-  "pro":  ["cloud sync", "Apple/Google Calendar sync", "PDF export", "..."]
-}
+Expected shape (see `references/phase-0-prepare.md` § 0c for the full
+collection prompt):
+
+```markdown
+# AppName — Features & Workflow
+
+## Free features
+- live shift, break and earnings tracking
+- automatic overtime calculation
+- …
+
+## Pro features
+- cloud sync
+- Apple Calendar sync (iCloud)
+- …
+
+## Workflow
+[2–4 paragraphs describing how a typical user uses the app]
+
+## Audiences
+- nurses
+- firefighters
+- …
 ```

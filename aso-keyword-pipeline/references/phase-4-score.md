@@ -16,8 +16,11 @@ Keeping it split this way is what makes scoring reproducible across runs.
 ## 4.1 `semantic` (0–10) — relevancy to the app (YOUR ONE JUDGEMENT)
 
 `semantic` answers one question: **how directly does this keyword describe
-what the app actually does?** Judge it only against `config.features`. Assign
-exactly one of six tiers — no in-between values:
+what the app actually does?** Judge it only against `features.md` — its
+`## Free features`, `## Pro features` and `## Audiences` sections (created
+in Phase 0c). If `features.md` is missing, stop and run Phase 0c first;
+do not invent capabilities. Assign exactly one of six tiers — no in-between
+values:
 
 | Score | Meaning | Pattern (ShiftGo examples) |
 |---|---|---|
@@ -35,7 +38,8 @@ Discipline rules:
 - Judge **meaning**, not language. Wrong-language tokens were already removed
   in Phase 3, so anything you see here is in-locale.
 - An audience term (nurse, firefighter, police, driver, carer…) lifts a
-  keyword toward 8 **only if** that audience is named in `config.features`.
+  keyword toward 8 **only if** that audience is named in `features.md`
+  → `## Audiences`.
 - A misspelling of a core term is still about the core function — score it on
   intent (a typo of "shift planner" is a high tier; "shitty" is a 4).
 
