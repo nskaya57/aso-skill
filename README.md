@@ -88,7 +88,7 @@ Pure standard library, no dependencies.
 aso-keyword-pipeline/
 ├── SKILL.md
 ├── references/        phase-0..5, drive-hierarchy
-├── assets/            config.schema.md, configs/{shiftgo.json, _template.features.md}
+├── assets/            config.schema.md, configs/{_template.json, _template.features.md}
 └── scripts/           aso_score.py, validate_fields.py
 ```
 

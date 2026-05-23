@@ -1,9 +1,10 @@
 # App config schema
 
-The config is the only thing that changes between apps. To run the pipeline
-for a new app, copy `configs/shiftgo.json`, change the values, save it as the
-app's `config.json` at the app root, and run the phases. Nothing app-specific
-should live in the conversation — only in this file.
+The config is the only thing that changes between apps. The skill copies
+the clean skeleton at `configs/_template.json` to the app's
+`ASO/<AppName>/config.json` during Phase 0b and fills it interactively from
+the user — never by hand-editing `_template.json`. Nothing app-specific
+should live in the conversation, only in the resulting config file.
 
 ## Fields
 

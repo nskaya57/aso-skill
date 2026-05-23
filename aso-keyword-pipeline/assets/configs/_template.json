@@ -1,0 +1,41 @@
+{
+  "app_name": "",
+  "app_store_id": "",
+  "play_package": "",
+  "root_folder": "ASO",
+  "apptweak_key_env": "APPTWEAK_API_KEY",
+
+  "competitors": [],
+
+  "brand_terms": [],
+  "keep_terms": [],
+
+  "stopwords": [
+    "app", "apps", "free", "the", "a", "an", "for", "with", "my", "and",
+    "of", "to", "in", "on", "your", "you", "is", "are", "best", "new",
+    "online", "mobile", "pro", "ios", "iphone", "ipad", "android"
+  ],
+
+  "locales": {},
+
+  "scoring": {
+    "rank_strength": [
+      { "max": 5,   "value": 1.00 },
+      { "max": 10,  "value": 0.80 },
+      { "max": 25,  "value": 0.50 },
+      { "max": 50,  "value": 0.25 },
+      { "max": 100, "value": 0.10 }
+    ],
+    "w_cov": 0.5,
+    "w_str": 0.5
+  },
+
+  "field_limits": {
+    "title": 30,
+    "subtitle": 30,
+    "keywords": 100,
+    "keywords_min": 90,
+    "promo": 170,
+    "description": 4000
+  }
+}

@@ -69,9 +69,11 @@ below exists to make that impossible.
 
 ## Inputs: the app config
 
-Before running anything, load the app config. For ShiftGo it is
-`assets/configs/shiftgo.json`. For a new app, copy that file, change the
-values, and follow `assets/config.schema.md`. The config carries:
+Before running anything, load the app config. The skill ships a clean
+skeleton at `assets/configs/_template.json` — **never edit it**. Phase 0b
+copies it to `ASO/<AppName>/config.json` and fills it interactively from
+the user. Follow `assets/config.schema.md` for field meanings. The config
+carries:
 
 - `app_name`, `app_store_id`, `play_package` — identity.
 - `competitors` — the rival app ids/names whose keywords you harvest.
