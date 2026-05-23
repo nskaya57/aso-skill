@@ -102,8 +102,10 @@ every target locale block filled.
 ## 0c — Features + workflow → `features.md`
 
 Ask the user three things, one block at a time, and write them into
-`ASO/<AppName>/features.md` (or `assets/configs/<app_name_slug>.features.md`
-if the app folder doesn't exist yet).
+`ASO/<AppName>/features.md`. Phase 0b must have created the app folder
+(`ASO/<AppName>/`) already; if it hasn't, run Phase 0b first — never
+write features to `assets/configs/` (that's where templates live, not
+runtime data).
 
 ### Block 1 — Free features
 

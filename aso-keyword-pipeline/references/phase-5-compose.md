@@ -76,35 +76,79 @@ the locale's native language** and describing **only** features in the config.
 
 ## Output format (`fields.csv`)
 
-One row, these columns:
+`fields.csv` is **locale-specific** — exactly one row, six columns, written
+to `ASO/<AppName>/<locale>/fields.csv`:
 
 ```
 locale,title,subtitle,keywords,promo,description
 de-DE,Schichtplan Kalender - ShiftGo,Dienstplan Stunden & Verdienst,"polizei,schicht,arbeit,…","Behalte deine Schichten …","Jede Schicht, jede Pause …"
 ```
 
-Append this row to the app-level `OUTPUT.csv` as well (the consolidated,
-all-locales output), creating `OUTPUT.csv` if it does not exist. Append only —
-never rewrite other locales' rows.
+After validation, **append** this row to the app-level
+`ASO/<AppName>/OUTPUT.csv` (same six columns, one row per locale).
+Create it with a header if missing. Append only — never rewrite a
+previous locale's row. The validator runs against the locale-specific
+`fields.csv`, not `OUTPUT.csv`.
 
-## Validate (mandatory — proves the brief's requirements)
+## Validate (mandatory — runs against `fields.csv`, not `OUTPUT.csv`)
 
 ```bash
 python scripts/validate_fields.py \
-  --in <locale>/fields.csv \
-  --config <path-to-config.json> \
+  --in ASO/<AppName>/<locale>/fields.csv \
+  --config ASO/<AppName>/config.json \
   --locale <locale>
 ```
 
 It must report **PASS** on all of:
 - Title ≤30, Subtitle ≤30, Keywords ≤100 and ≥90, Promo ≤170, Description ≤4000.
 - No token repeated across Title / Subtitle / Keyword field.
-- No singular/plural pair inside the keyword field.
+- No singular/plural pair inside the keyword field — checked with the
+  locale-appropriate suffix list (English `+s/+es/+ies`, German
+  `+e/+er/+en/+n/+s`, Turkish `+lar/+ler`, etc.). If the locale isn't
+  in the table, falls back to English and warns. Override per-locale in
+  `config.plural_rules.<locale>: ["lar","ler"]`.
 - No stop words / `app` / `free` in the keyword field.
 - Keyword field is comma-separated with no spaces.
+- Validator refuses to run if multiple rows match the locale (catches
+  the "ran against OUTPUT.csv by mistake" failure mode).
 
-Fix and re-run until it passes. A locale is not done until the validator is
-green.
+Fix and re-run until it passes. A locale is not done until the validator
+is green.
+
+## Description compliance check (recommended)
+
+After the validator passes, run a feature-compliance spot-check against
+`features.md`:
+
+```bash
+python scripts/parse_features.py \
+  --in ASO/<AppName>/features.md \
+  --check-description ASO/<AppName>/<locale>/fields.csv \
+  --locale <locale>
+```
+
+It flags every description bullet line that doesn't touch a feature or
+audience token from `features.md`. Either add the matching feature to
+`features.md` or remove the claim from the description.
+
+## Write back `self_indexed` for the next locale
+
+When this locale's `fields.csv` is final, the tokens in its Title +
+Subtitle are now indexed by the store for the user's listing. Add them
+to `config.locales[<locale>].self_indexed` so the **same** tokens don't
+re-appear in the keyword field of OTHER locales when you compose them.
+
+Tokens to write back: every word from `title` + `subtitle`, lower-cased,
+minus the brand name and Apple-ignored words.
+
+```jsonc
+// before
+"de-DE": { "country": "de", "device": "iphone", "allowed_scripts": ["latin"], "self_indexed": [] }
+
+// after composing de-DE: Title "Schichtplan Kalender - ShiftGo",
+// Subtitle "Dienstplan Stunden & Verdienst"
+"de-DE": { ..., "self_indexed": ["schichtplan","kalender","dienstplan","stunden","verdienst"] }
+```
 
 ## Done when
 

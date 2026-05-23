@@ -104,7 +104,7 @@ intended "sub-prompt" usage.
 | Phase | Reference | Input → Output | Who decides |
 |---|---|---|---|
 | 0. Prepare | `references/phase-0-prepare.md` | user answers → `.env` + `config.json` + `features.md` | model (interactive) |
-| 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` | script/API |
+| 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` | `scripts/fetch_keywords.py` (reads `.env`) |
 | 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` | script |
 | 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` | script |
 | 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` | script + 1 judgement |

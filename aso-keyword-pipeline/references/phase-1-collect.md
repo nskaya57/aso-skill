@@ -10,21 +10,41 @@ For the single target locale, download each competitor's **best-100 ranked
 keywords** and persist them, one JSON file per competitor, so later phases
 read from disk and never depend on the API again.
 
-## AppTweak request (per competitor)
+## Run
 
-For each `competitor` in the config, request its top ranked keywords for the
-locale. Use the config values; do not hard-code:
+```bash
+python scripts/fetch_keywords.py \
+  --config ASO/<AppName>/config.json \
+  --locale <locale> \
+  --out-dir ASO/<AppName>/<locale>/raw
+```
 
-- API key: read from `.env` at project root, variable name from
-  `config.apptweak_key_env` (default `APPTWEAK_API_KEY`). If `.env` is
-  missing, run **Phase 0a** first. Never paste the key into output files,
-  CSVs, or chat. Send it only as the `x-apptweak-key` HTTP header.
-- App id: the competitor's store id.
-- Country / device: derived from the locale (e.g. `en-US` → country `us`,
-  device `iphone`; `de-DE` → country `de`). The locale → (country, device)
-  mapping is in the config `locales` entries.
-- Limit: 100 (best-100). If the API paginates, page until you have the top
-  100 by rank.
+The script reads `.env` (default `./.env`, override with `--env <path>`),
+validates the config (≥3 competitors with numeric `app_id`, locale exists),
+resolves the locale to country+device from `config.locales`, and writes one
+JSON per competitor to `--out-dir`. The API key is sent only as the
+`x-apptweak-key` HTTP header and never persisted to any output file.
+
+## AppTweak endpoint reference
+
+```
+GET https://public-api.apptweak.com/api/public/store/keywords/suggestions/app.json
+    ?apps=<app_id>
+    &country=<cfg.locales[locale].country>      # e.g. us, gb, de, tr
+    &device=<cfg.locales[locale].device>        # iphone | ipad | android
+    &limit=500
+    &offset=<0, 500, ...>
+    &sort=score
+    &sort_direction=desc
+
+Headers:
+    x-apptweak-key: <APPTWEAK_API_KEY from .env>
+    Accept: application/json
+```
+
+Page until the response returns fewer than 500 keywords OR you have
+collected `--max` (default 100, per the Phase 1 spec). The script handles
+the loop; if you re-implement, replicate it.
 
 The **volume** value AppTweak returns is the Apple Search Ads "Search
 Popularity" index (5–100, floored at 5). Keep it in the JSON for reference,

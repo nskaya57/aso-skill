@@ -36,17 +36,66 @@ def word_tokens(text):
     return [t for t in re.split(r"[\s,]+", norm(text)) if t]
 
 
-def plural_pairs(kw_tokens):
-    """Return list of (singular, plural) pairs present in the keyword tokens."""
+DEFAULT_PLURAL_SUFFIXES = {
+    # English handles via stemming
+    "en":    ["s", "es", "ies"],
+    "en-US": ["s", "es", "ies"],
+    "en-GB": ["s", "es", "ies"],
+    # German: -e, -er, -en, -n, -s
+    "de":    ["e", "er", "en", "n", "s"],
+    "de-DE": ["e", "er", "en", "n", "s"],
+    # Turkish: -lar / -ler
+    "tr":    ["lar", "ler"],
+    "tr-TR": ["lar", "ler"],
+    # French: -s, -x
+    "fr":    ["s", "x"],
+    "fr-FR": ["s", "x"],
+    # Spanish: -s, -es
+    "es":    ["s", "es"],
+    "es-ES": ["s", "es"],
+    "es-MX": ["s", "es"],
+    # Italian: -i, -e
+    "it":    ["i", "e"],
+    "it-IT": ["i", "e"],
+    # Portuguese: -s, -es
+    "pt":    ["s", "es"],
+    "pt-BR": ["s", "es"],
+    "pt-PT": ["s", "es"],
+    # Dutch: -en, -s
+    "nl":    ["en", "s"],
+    "nl-NL": ["en", "s"],
+    # Polish: -y, -e
+    "pl":    ["y", "e"],
+    "pl-PL": ["y", "e"],
+}
+
+
+def resolve_plural_suffixes(locale, custom):
+    """Pick the suffix list to use for plural-pair detection.
+    custom (list[str]) overrides; otherwise look up locale, then language,
+    then fall back to English. None means "no detection" (validator skips
+    the plural check)."""
+    if custom is not None:
+        return custom or None  # explicit [] → skip
+    s = DEFAULT_PLURAL_SUFFIXES.get(locale)
+    if s is None and locale and "-" in locale:
+        s = DEFAULT_PLURAL_SUFFIXES.get(locale.split("-", 1)[0])
+    return s or DEFAULT_PLURAL_SUFFIXES["en"]
+
+
+def plural_pairs(kw_tokens, suffixes):
+    """Return list of (singular, plural) pairs using the given suffix list.
+    If `suffixes` is None or empty, returns []."""
+    if not suffixes:
+        return []
     s = set(kw_tokens)
     pairs = []
     for w in kw_tokens:
-        for plural in (w + "s", w + "es"):
+        for suffix in suffixes:
+            plural = w + suffix
             if plural in s and plural != w:
                 pairs.append((w, plural))
-    # de-dup symmetric hits
-    seen = set()
-    out = []
+    seen, out = set(), []
     for a, b in pairs:
         key = tuple(sorted((a, b)))
         if key not in seen:
@@ -70,7 +119,12 @@ def main():
         rows = [r for r in csv.DictReader(f) if norm(r.get("locale")) == norm(args.locale)]
     if not rows:
         sys.exit(f"ERROR: no row for locale {args.locale} in {args.infile}")
-    row = rows[-1]
+    if len(rows) > 1:
+        sys.exit(f"ERROR: {len(rows)} rows for locale {args.locale} in "
+                 f"{args.infile}. Validator expects locale-specific fields.csv "
+                 f"(one row). OUTPUT.csv (multi-locale) is a consolidated "
+                 f"reference; do not run validator against it.")
+    row = rows[0]
 
     title = row.get("title", "")
     subtitle = row.get("subtitle", "")
@@ -118,11 +172,18 @@ def main():
           "No stop/generic words in keyword field",
           f"Stop/generic words in keyword field: {bad_stop}")
 
-    # plural pairs in keyword field
-    pairs = plural_pairs(kw_tokens)
-    check(not pairs,
-          "No singular/plural pairs in keyword field",
-          f"Singular/plural pairs in keyword field: {pairs}")
+    # plural pairs in keyword field — locale-aware
+    plural_cfg = (cfg.get("plural_rules") or {}).get(args.locale)
+    suffixes = resolve_plural_suffixes(args.locale, plural_cfg)
+    pairs = plural_pairs(kw_tokens, suffixes)
+    if suffixes:
+        check(not pairs,
+              f"No singular/plural pairs in keyword field "
+              f"(suffixes: {','.join(suffixes)})",
+              f"Singular/plural pairs in keyword field: {pairs}")
+    else:
+        oks.append(f"Plural-pair check skipped for {args.locale} "
+                   f"(no suffix rules — review keyword field manually)")
 
     # cross-field duplication (token level)
     title_tok = set(word_tokens(title))

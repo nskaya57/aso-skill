@@ -92,9 +92,34 @@ def is_brand(keyword, brand_terms, keep_terms):
     return False
 
 
-def content_tokens(keyword, stopwords):
+def content_tokens(keyword, stopwords, keep_terms=None):
+    """Strip stop words from a keyword's tokens. `keep_terms` overrides
+    stopwords — a token listed in keep_terms is preserved even if it is
+    also in stopwords."""
     sw = {norm(s) for s in stopwords}
-    return [t for t in tokens(keyword) if t not in sw]
+    keep = {norm(s) for s in (keep_terms or [])}
+    return [t for t in tokens(keyword) if t in keep or t not in sw]
+
+
+def validate_config(cfg, *, need_locales=False, need_competitors=False):
+    """Fail loud on common Phase 0 mistakes."""
+    errs = []
+    if need_competitors:
+        comps = cfg.get("competitors", [])
+        if len(comps) < 3:
+            errs.append(f"config.competitors has {len(comps)} entries; "
+                        f"pipeline needs at least 3 (≥3 rule)")
+        for c in comps:
+            if not c.get("app_id"):
+                errs.append(f"competitor '{c.get('name')}' has empty app_id "
+                            f"(Phase 0b)")
+            elif not str(c["app_id"]).isdigit():
+                errs.append(f"competitor '{c.get('name')}' app_id "
+                            f"'{c['app_id']}' is not numeric")
+    if need_locales and not cfg.get("locales"):
+        errs.append("config.locales is empty (Phase 0b)")
+    if errs:
+        sys.exit("CONFIG VALIDATION FAILED:\n  - " + "\n  - ".join(errs))
 
 
 def strength_for_rank(rank, buckets):
@@ -139,6 +164,7 @@ def compute_competitor(rank_cells, scoring, n_competitors):
 
 def stage_merge(args):
     cfg = load_config(args.config)
+    validate_config(cfg, need_competitors=True)
     comp_names = [c["name"] for c in cfg["competitors"]]
 
     # map competitor name -> {keyword: best_rank}, and global volume
@@ -195,6 +221,10 @@ def stage_merge(args):
 
 def stage_filter(args):
     cfg = load_config(args.config)
+    validate_config(cfg, need_locales=True, need_competitors=True)
+    if args.locale not in cfg["locales"]:
+        sys.exit(f"ERROR: locale '{args.locale}' not in config.locales "
+                 f"({sorted(cfg['locales'].keys())})")
     scoring = cfg["scoring"]
     loc = cfg["locales"][args.locale]
     allowed = loc.get("allowed_scripts", ["latin"])
@@ -202,6 +232,10 @@ def stage_filter(args):
     brand = cfg.get("brand_terms", [])
     keep = cfg.get("keep_terms", [])
     stop = cfg.get("stopwords", [])
+    if not brand:
+        print("WARN: config.brand_terms is empty — brand filter is a no-op. "
+              "Phase 0b should at least seed it with the app name.",
+              file=sys.stderr)
 
     with open(args.infile, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -219,7 +253,7 @@ def stage_filter(args):
         if not script_ok(kw, allowed):
             dropped["script"] += 1
             continue
-        ctoks = content_tokens(kw, stop)
+        ctoks = content_tokens(kw, stop, keep)
         if not ctoks:
             dropped["generic"] += 1
             continue

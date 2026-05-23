@@ -19,8 +19,19 @@ Keeping it split this way is what makes scoring reproducible across runs.
 what the app actually does?** Judge it only against `features.md` — its
 `## Free features`, `## Pro features` and `## Audiences` sections (created
 in Phase 0c). If `features.md` is missing, stop and run Phase 0c first;
-do not invent capabilities. Assign exactly one of six tiers — no in-between
-values:
+do not invent capabilities.
+
+For a structured view of `features.md`, run the parser before scoring:
+
+```bash
+python scripts/parse_features.py --in ASO/<AppName>/features.md
+```
+
+The script prints `{free, pro, workflow, audiences}` as JSON — paste that
+into your working context so you score against the actual list, not a
+half-remembered version.
+
+Assign exactly one of six tiers — no in-between values:
 
 | Score | Meaning | Pattern (ShiftGo examples) |
 |---|---|---|

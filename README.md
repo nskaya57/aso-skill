@@ -70,17 +70,47 @@ weights are tunable in the config.
 ## Scripts
 
 ```bash
-# merge competitor JSONs into a matrix
-python scripts/aso_score.py --stage merge  --raw-dir <locale>/raw --config <config> --out <locale>/merged.csv
-# filter (brand / wrong-script / stop / self-indexed) + ≥3 rule + competitor
-python scripts/aso_score.py --stage filter --in <locale>/merged.csv --config <config> --locale <locale> --out <locale>/filtered.csv
-# after filling `semantic`, compute total and sort
-python scripts/aso_score.py --stage total  --in <locale>/filtered.semantic.csv --config <config> --out <locale>/scored.csv
-# validate composed fields
-python scripts/validate_fields.py --in <locale>/fields.csv --config <config> --locale <locale>
+# Phase 1 — fetch competitor keywords (reads .env)
+python scripts/fetch_keywords.py --config ASO/<App>/config.json \
+  --locale <locale> --out-dir ASO/<App>/<locale>/raw
+
+# Phase 2 — merge competitor JSONs into a matrix
+python scripts/aso_score.py --stage merge  --raw-dir ASO/<App>/<locale>/raw \
+  --config ASO/<App>/config.json --out ASO/<App>/<locale>/merged.csv
+
+# Phase 3 — filter brand / wrong-script / stop / self-indexed + ≥3 + competitor
+python scripts/aso_score.py --stage filter --in ASO/<App>/<locale>/merged.csv \
+  --config ASO/<App>/config.json --locale <locale> --out ASO/<App>/<locale>/filtered.csv
+
+# Phase 4 — after filling `semantic` column, compute total + sort
+python scripts/aso_score.py --stage total --in ASO/<App>/<locale>/filtered.semantic.csv \
+  --config ASO/<App>/config.json --out ASO/<App>/<locale>/scored.csv
+
+# Phase 4/5 — read features.md as structured JSON
+python scripts/parse_features.py --in ASO/<App>/features.md
+
+# Phase 5 — validate composed fields
+python scripts/validate_fields.py --in ASO/<App>/<locale>/fields.csv \
+  --config ASO/<App>/config.json --locale <locale>
+
+# Phase 5 — feature-compliance spot-check against features.md
+python scripts/parse_features.py --in ASO/<App>/features.md \
+  --check-description ASO/<App>/<locale>/fields.csv --locale <locale>
 ```
 
-Pure standard library, no dependencies.
+Pure standard library, no dependencies. Python ≥3.7.
+
+## Getting started
+
+1. Clone or copy this folder into Claude Code's skills directory:
+   - **Project-local:** `<your-app>/.claude/skills/aso-keyword-pipeline/`
+   - **User-level:** `~/.claude/skills/aso-keyword-pipeline/`
+2. Open the project in Claude. The skill auto-triggers on ASO requests
+   ("do keywords for the German store", "add a new language to the ASO
+   sheet", etc.).
+3. The first action the skill takes is **Phase 0** — three sub-prompts
+   that collect your AppTweak key, app + competitor IDs, and features.
+   Nothing else has to be configured first.
 
 ## Layout
 
@@ -89,7 +119,7 @@ aso-keyword-pipeline/
 ├── SKILL.md
 ├── references/        phase-0..5, drive-hierarchy
 ├── assets/            config.schema.md, configs/{_template.json, _template.features.md}
-└── scripts/           aso_score.py, validate_fields.py
+└── scripts/           fetch_keywords.py, aso_score.py, parse_features.py, validate_fields.py
 ```
 
 ## License
