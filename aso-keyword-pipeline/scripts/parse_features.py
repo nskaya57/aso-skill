@@ -9,11 +9,12 @@ consume without "eyeballing" markdown. Pure stdlib.
 The contract is shallow on purpose: only `## Free features`,
 `## Pro features`, `## Workflow`, `## Audiences` (case-insensitive) are
 recognised. Anything else is ignored. Bullets are recognised as lines
-beginning with `- ` or `* `.
+beginning with `-` or `*`.
 
 Usage:
     python parse_features.py --in ASO/<App>/features.md
-    python parse_features.py --in ASO/<App>/features.md --check-description ASO/<App>/<locale>/fields.csv --locale <locale>
+    python parse_features.py --in ASO/<App>/features.md \\
+        --check-description ASO/<App>/<locale>/fields.csv --locale <locale>
 """
 import argparse
 import csv
@@ -28,12 +29,28 @@ RECOGNISED = {
     "audiences": "audiences",
 }
 
+# Latin + German + Turkish + Cyrillic + CJK + Hangul
+WORD_RE = re.compile(r"[a-zäöüßçğıöşüа-яё぀-ヿ一-鿿가-힯]+", re.IGNORECASE)
+MIN_TOKEN_LEN = 4
+# Compliance: a description paragraph PASSES if at least this many of its
+# meaningful tokens map to the feature bag. Tuned so that natural-language
+# prose with one or two scene-setting words (e.g. "track every shift,
+# every break, every dollar") still passes when "shift" + "break" are in
+# features.md, but a fully fabricated claim ("step counter, heart rate")
+# fails.
+PROSE_MATCH_RATIO = 0.30  # at least 30% of tokens must touch the bag
+
 
 def parse_features_md(path):
+    try:
+        f = open(path, "r", encoding="utf-8-sig")
+    except FileNotFoundError:
+        sys.exit(f"ERROR: features.md not found at {path}. "
+                 f"Run Phase 0c first (see references/phase-0-prepare.md).")
     out = {"free": [], "pro": [], "workflow": "", "audiences": []}
     current = None
     workflow_lines = []
-    with open(path, "r", encoding="utf-8") as f:
+    with f:
         for line in f:
             m = re.match(r"^##\s+(.+?)\s*$", line)
             if m:
@@ -54,33 +71,74 @@ def parse_features_md(path):
     return out
 
 
-def check_description_compliance(features, description):
-    """Light check: every line of the description that LOOKS like a
-    feature claim should map (lower-case substring) to at least one
-    feature bullet from free/pro, or to an audience term. Returns list
-    of suspicious lines (claims that match nothing)."""
-    feature_bag = set()
-    for item in features["free"] + features["pro"]:
-        for tok in re.findall(r"[a-zA-ZäöüÄÖÜßçğıöşüÇĞİÖŞÜ]+", item.lower()):
-            if len(tok) >= 4:
-                feature_bag.add(tok)
-    for a in features["audiences"]:
-        for tok in re.findall(r"[a-zA-Z]+", a.lower()):
-            if len(tok) >= 4:
-                feature_bag.add(tok)
+def build_feature_bag(features):
+    """All ≥4-char tokens from free + pro + audiences + workflow."""
+    bag = set()
+    sources = features["free"] + features["pro"] + features["audiences"]
+    sources.append(features["workflow"])
+    for item in sources:
+        for tok in WORD_RE.findall(item.lower()):
+            if len(tok) >= MIN_TOKEN_LEN:
+                bag.add(tok)
+    return bag
 
-    suspicious = []
-    for line in description.splitlines():
-        line_low = line.strip().lower()
-        if not line_low or not line_low.startswith(("•", "-", "*")):
+
+def _meaningful_tokens(text):
+    return [t for t in WORD_RE.findall(text.lower()) if len(t) >= MIN_TOKEN_LEN]
+
+
+def check_description_compliance(features, description):
+    """Two-tier check:
+      • BULLET lines (•/-/*): every bullet must touch ≥1 feature/audience
+        token. A bullet that touches none is flagged (strict).
+      • PROSE lines (hook + audience paragraphs): each paragraph must
+        have ≥PROSE_MATCH_RATIO of its meaningful tokens in the feature
+        bag. Lower ratios are flagged (catches fabricated narratives).
+
+    Returns (bullet_misses, prose_misses) where each is a list of
+    (line_or_paragraph, reason).
+    """
+    bag = build_feature_bag(features)
+    bullet_misses = []
+    prose_misses  = []
+    paragraph     = []
+
+    def flush_prose():
+        nonlocal paragraph
+        if not paragraph:
+            return
+        joined = " ".join(paragraph)
+        toks = _meaningful_tokens(joined)
+        if toks:
+            hits = sum(1 for t in toks if t in bag)
+            ratio = hits / len(toks)
+            if ratio < PROSE_MATCH_RATIO:
+                prose_misses.append(
+                    (joined[:140],
+                     f"{hits}/{len(toks)} tokens match features.md "
+                     f"({ratio:.0%} < {PROSE_MATCH_RATIO:.0%})"))
+        paragraph = []
+
+    for raw in description.splitlines():
+        line = raw.strip()
+        if not line:
+            flush_prose()
             continue
-        body = line_low.lstrip("•-*").strip()
-        toks = [t for t in re.findall(r"[a-zA-ZäöüÄÖÜßçğıöşüÇĞİÖŞÜ]+", body) if len(t) >= 4]
-        if not toks:
+        if line.startswith(("•", "-", "*")):
+            flush_prose()
+            body = line.lstrip("•-*").strip().lower()
+            toks = _meaningful_tokens(body)
+            if toks and not any(t in bag for t in toks):
+                bullet_misses.append((line, "no token matches features.md"))
             continue
-        if not any(t in feature_bag for t in toks):
-            suspicious.append(line.strip())
-    return suspicious
+        # treat ALL-CAPS heading lines as section breaks, not prose
+        stripped = re.sub(r"[^a-zA-ZäöüÄÖÜß]", "", line)
+        if stripped and stripped.isupper() and len(stripped) >= 3:
+            flush_prose()
+            continue
+        paragraph.append(line)
+    flush_prose()
+    return bullet_misses, prose_misses
 
 
 def main():
@@ -99,20 +157,34 @@ def main():
     if not args.locale:
         sys.exit("ERROR: --locale required with --check-description")
 
-    with open(args.check_description, "r", encoding="utf-8") as f:
+    try:
+        f = open(args.check_description, "r", encoding="utf-8-sig")
+    except FileNotFoundError:
+        sys.exit(f"ERROR: {args.check_description} not found. "
+                 f"Run Phase 5 (compose) first.")
+    with f:
         row = next((r for r in csv.DictReader(f)
                     if (r.get("locale") or "").strip().lower() == args.locale.lower()), None)
     if not row:
         sys.exit(f"ERROR: no row for locale {args.locale} in {args.check_description}")
 
-    suspicious = check_description_compliance(features, row.get("description", ""))
+    bullets, prose = check_description_compliance(features, row.get("description", ""))
     print(f"=== feature compliance for {args.locale} ===")
-    if not suspicious:
-        print("  PASS — every bullet line touches a feature/audience token from features.md")
+    if not bullets and not prose:
+        print("  PASS — every bullet AND every prose paragraph touches "
+              "features.md")
         return
-    print(f"  WARN — {len(suspicious)} description bullet(s) reference no feature/audience token:")
-    for s in suspicious:
-        print(f"    ! {s}")
+    if bullets:
+        print(f"\n  BULLET WARN — {len(bullets)} bullet(s) reference no "
+              f"feature/audience token:")
+        for line, reason in bullets:
+            print(f"    ! {line}")
+    if prose:
+        print(f"\n  PROSE WARN — {len(prose)} paragraph(s) below "
+              f"{PROSE_MATCH_RATIO:.0%} feature density:")
+        for joined, reason in prose:
+            print(f"    ! {reason}")
+            print(f"      → {joined!r}")
     print("\n  Review each: either add the matching feature to features.md "
           "or remove the claim from the description.")
     sys.exit(2)

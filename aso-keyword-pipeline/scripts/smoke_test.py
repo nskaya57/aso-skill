@@ -126,19 +126,18 @@ def main():
         for k in ["acme planner", "rival1 alt"]:
             assert k not in keywords_kept, f"brand '{k}' not dropped"
 
-        # Fill semantic (forced rubric)
-        semantic_map = {
-            "shift planner": 10, "work calendar": 10,
-            "nurse shift": 8, "shift tracker": 10,
-        }
+        # Fill semantic via fill_semantic.py (tests that helper too)
+        semantic_map = {row["keyword"]: 10 if "shift" in row["keyword"]
+                                       else 8 if "nurse" in row["keyword"]
+                                       else 5
+                        for row in list(csv.DictReader(open(filtered)))}
+        sem_json = os.path.join(tmp, "semantic.json")
+        with open(sem_json, "w") as f:
+            json.dump(semantic_map, f, ensure_ascii=False, indent=2)
         sem_csv = os.path.join(tmp, "filtered.semantic.csv")
-        with open(filtered) as fin, open(sem_csv, "w", newline="") as fout:
-            r = csv.DictReader(fin)
-            w = csv.DictWriter(fout, fieldnames=r.fieldnames)
-            w.writeheader()
-            for row in r:
-                row["semantic"] = semantic_map.get(row["keyword"], 5)
-                w.writerow(row)
+        fs = os.path.join(HERE, "fill_semantic.py")
+        run([sys.executable, fs, "--in", filtered, "--semantic-json", sem_json,
+             "--out", sem_csv])
 
         run([sys.executable, sc, "--stage", "total", "--in", sem_csv,
              "--config", cfg_path, "--out", scored])
@@ -146,19 +145,54 @@ def main():
         assert all(r["total"] for r in rows), "missing total scores"
         assert all(int(r["semantic"]) in {10, 8, 7, 5, 4, 1} for r in rows)
 
-        # Phase 5: fake a fields.csv to validate.
-        # Title tokens (shift, planner, calendar) + Subtitle tokens
-        # (work, schedule, tracker) must NOT appear in keywords field.
-        write(fields,
-              "locale,title,subtitle,keywords,promo,description\n"
-              'en-US,"Shift Planner Calendar - Acme","Work Schedule & Tracker",'
-              '"nurse,roster,duty,job,employee,scheduling,time,maker,calender,personal,hour,rotation,overtime",'
-              '"Track shifts in real time.","Track every shift. Acme keeps your work calendar in one place."\n')
+        # Phase 5: write fields via write_fields.py (tests CSV escaping)
+        wf = os.path.join(HERE, "write_fields.py")
+        out_csv = os.path.join(tmp, "OUTPUT.csv")
+        # Description has commas + quotes + newlines — confirms safe escaping
+        tricky_desc = ('Track every shift, every break, every dollar.\n\n'
+                       'Acme is a "shift, calendar, planner" all in one. '
+                       'For nurses and shift workers.')
+        run([sys.executable, wf,
+             "--locale", "en-US",
+             "--title", "Shift Planner Calendar - Acme",
+             "--subtitle", "Work Schedule & Tracker",
+             "--keywords",
+             "nurse,roster,duty,job,employee,scheduling,time,maker,calender,personal,hour,rotation,overtime",
+             "--promo", "Track shifts in real time.",
+             "--description", tricky_desc,
+             "--out", fields,
+             "--output-csv", out_csv])
+
+        # Re-parse to confirm CSV is structurally intact after the tricky desc
+        with open(fields, "r", encoding="utf-8") as f:
+            rr = next(csv.DictReader(f))
+        assert rr["description"] == tricky_desc, "CSV round-trip corrupted description"
+        with open(out_csv, "r", encoding="utf-8") as f:
+            orows = list(csv.DictReader(f))
+        assert len(orows) == 1 and orows[0]["locale"] == "en-US"
+
         vf = os.path.join(HERE, "validate_fields.py")
         run([sys.executable, vf, "--in", fields, "--config", cfg_path,
              "--locale", "en-US"])
 
-        print("\nSMOKE OK — merge, filter, total, validate all green.")
+        # parse_features.py: build features.md + check it works
+        features_md = os.path.join(tmp, "features.md")
+        write(features_md,
+              "# Acme — Features & Workflow\n\n"
+              "## Free features\n- shift tracking\n- automatic overtime\n\n"
+              "## Pro features\n- cloud sync\n\n"
+              "## Workflow\nUser opens the app, adds a shift, tracks earnings.\n\n"
+              "## Audiences\n- nurses\n- firefighters\n")
+        pf = os.path.join(HERE, "parse_features.py")
+        out = run([sys.executable, pf, "--in", features_md])
+        parsed = json.loads(out)
+        assert parsed["free"] == ["shift tracking", "automatic overtime"]
+        assert parsed["pro"] == ["cloud sync"]
+        assert "User opens" in parsed["workflow"]
+        assert parsed["audiences"] == ["nurses", "firefighters"]
+
+        print("\nSMOKE OK — merge, filter, fill, total, write, validate, "
+              "parse_features all green.")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

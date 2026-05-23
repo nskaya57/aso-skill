@@ -84,11 +84,30 @@ locale,title,subtitle,keywords,promo,description
 de-DE,Schichtplan Kalender - ShiftGo,Dienstplan Stunden & Verdienst,"polizei,schicht,arbeit,…","Behalte deine Schichten …","Jede Schicht, jede Pause …"
 ```
 
-After validation, **append** this row to the app-level
-`ASO/<AppName>/OUTPUT.csv` (same six columns, one row per locale).
-Create it with a header if missing. Append only — never rewrite a
-previous locale's row. The validator runs against the locale-specific
-`fields.csv`, not `OUTPUT.csv`.
+Use the writer script to avoid CSV-escape mistakes (a comma inside the
+description corrupts a hand-rolled CSV silently):
+
+```bash
+python scripts/write_fields.py \
+  --locale <locale> \
+  --title "<title>" \
+  --subtitle "<subtitle>" \
+  --keywords "<comma,separated,tokens>" \
+  --promo "<promo text>" \
+  --description-file ASO/<AppName>/<locale>/description.txt \
+  --out ASO/<AppName>/<locale>/fields.csv \
+  --output-csv ASO/<AppName>/OUTPUT.csv
+```
+
+The script:
+- writes `fields.csv` with one row, six columns, fully CSV-escaped;
+- appends the same row to the app-level `OUTPUT.csv`, creating it with
+  a header if missing;
+- refuses to append a duplicate-locale row to `OUTPUT.csv` (catches
+  re-runs that should overwrite instead of append).
+
+The validator runs against the locale-specific `fields.csv`, not
+`OUTPUT.csv`.
 
 ## Validate (mandatory — runs against `fields.csv`, not `OUTPUT.csv`)
 

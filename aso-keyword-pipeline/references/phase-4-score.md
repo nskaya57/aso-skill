@@ -112,8 +112,30 @@ length into `total` itself.
 
 ## How to run
 
-After you have filled the `semantic` column in `filtered.csv` (save it as,
-e.g., `filtered.semantic.csv`):
+Step 1 — emit a JSON skeleton from `filtered.csv` so the model can fill
+`semantic` values in a single structured artefact (instead of editing
+CSV cells by hand and risking column drift):
+
+```bash
+python scripts/fill_semantic.py --in <locale>/filtered.csv \
+  --emit-skeleton <locale>/semantic.json
+```
+
+Step 2 — open `semantic.json`, set every value to one of
+`{10, 8, 7, 5, 4, 1}` per the rubric above.
+
+Step 3 — apply the filled JSON to produce `filtered.semantic.csv`:
+
+```bash
+python scripts/fill_semantic.py --in <locale>/filtered.csv \
+  --semantic-json <locale>/semantic.json \
+  --out <locale>/filtered.semantic.csv
+```
+
+(Keywords missing from the JSON default to 1 — irrelevant — and are
+flagged in the script's WARN output.)
+
+Step 4 — compute totals and sort:
 
 ```bash
 python scripts/aso_score.py --stage total \

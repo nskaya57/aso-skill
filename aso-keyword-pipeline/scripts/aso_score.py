@@ -27,8 +27,13 @@ RESERVED_COLS = {"keyword", "volume", "competitor", "semantic", "total"}
 # ----------------------------- helpers -------------------------------------
 
 def load_config(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        sys.exit(f"ERROR: config not found at {path}. Run Phase 0b first.")
+    except json.JSONDecodeError as e:
+        sys.exit(f"ERROR: config is not valid JSON ({path}): {e}")
 
 
 def norm(s):

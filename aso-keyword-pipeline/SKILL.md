@@ -107,8 +107,8 @@ intended "sub-prompt" usage.
 | 1. Collect | `references/phase-1-collect.md` | AppTweak API → `raw/*.json` | `scripts/fetch_keywords.py` (reads `.env`) |
 | 2. Merge | `references/phase-2-merge.md` | `raw/*.json` → `merged.csv` | script |
 | 3. Filter | `references/phase-3-filter.md` | `merged.csv` → `filtered.csv` | script |
-| 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` | script + 1 judgement |
-| 5. Compose | `references/phase-5-compose.md` | `scored.csv` → `fields.csv` + Description | model + validator |
+| 4. Score | `references/phase-4-score.md` | `filtered.csv` → `scored.csv` | `fill_semantic.py` + `aso_score.py --stage total` |
+| 5. Compose | `references/phase-5-compose.md` | `scored.csv` → `fields.csv` + Description | `write_fields.py` + `validate_fields.py` + `parse_features.py --check-description` |
 
 Always read the relevant phase reference file before doing that phase — the
 rules and exact formats live there, deliberately out of this overview so the

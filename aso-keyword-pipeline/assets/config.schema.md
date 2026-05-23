@@ -19,7 +19,7 @@ Required unless marked **(optional)**.
 | `apptweak_key_env` | string | Env var name holding the AppTweak key (default `APPTWEAK_API_KEY`). The key itself lives in `.env`, never in this file. |
 | `competitors` | array | Ordered list of `{ "name": …, "app_id": … }` (both required, `app_id` numeric). Order = matrix column order. **Minimum 3 entries** — the script aborts below this (≥3 rule). |
 | `brand_terms` | array | Lower-case brand tokens to strip in Phase 3 (your brand + every competitor brand). Empty → brand filter is a no-op (the script warns). |
-| `keep_terms` | array **(optional)** | Tokens preserved even if also in `stopwords` (overrides stopwords, used by Phase 3). |
+| `keep_terms` | array **(optional)** | **Single-token** entries preserved even if also in `stopwords` (overrides stopwords, Phase 3). Multi-word phrases (e.g. `"shift work"`) are NOT keep-matched token-by-token; if you need a phrase to survive, ensure at least one of its tokens isn't in `stopwords` to begin with. |
 | `stopwords` | array | Generic auto-indexed + stop words to strip (`app`, `free`, `the`, `for`, …). |
 | `locales` | object | Map of locale → `{ country, device, allowed_scripts, self_indexed }`. **Must contain at least one entry.** |
 | `plural_rules` | object **(optional)** | Per-locale plural-suffix override for the Phase 5 validator. See "plural_rules" below. |

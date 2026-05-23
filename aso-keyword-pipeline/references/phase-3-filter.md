@@ -19,16 +19,27 @@ script (not by eye) is what keeps every locale consistent.
    "shifter","myshiftplanner","shiftar","shiftgo"]`).
 
 2. **Wrong-script tokens for the locale.** Each locale declares its
-   `allowed_scripts` in the config (e.g. `["latin"]` for en/de/tr,
-   `["cyrillic"]` for ru, `["han"]` for zh). Keywords containing characters
-   outside the allowed scripts are dropped. This is what removes the Russian
-   / Chinese / Korean rows from a Latin-script store. (Unicode script
-   detection is deterministic; the script does it for you.)
+   `allowed_scripts` in the config. Keywords containing characters
+   outside the allowed scripts are dropped. This removes the Russian /
+   Chinese / Korean rows from a Latin-script store.
 
-3. **Generic auto-indexed words and stop words.** `app`, `free`, and the
-   platform stop words (`the`, `a`, `for`, `with`, `my`, `and`, `of`, …) carry
-   no ranking value because the store indexes them anyway. The list is in the
-   config `stopwords`.
+   **Supported script names**:
+   `latin` (en/de/tr/fr/es/it/pt/nl/pl/sv/no/da/fi/cs/hu/ro),
+   `cyrillic` (ru/uk/bg/sr-cyrl), `han` (zh-Hans/zh-Hant),
+   `hangul` (ko), `kana` (ja, used together with `han`),
+   `arabic` (ar/fa/ur), `greek` (el), `hebrew` (he), `thai` (th),
+   `devanagari` (hi/mr). Anything else (Bengali, Tamil, Tibetan,
+   Georgian, Armenian…) is classified as `other` and dropped. If
+   you target one of those, extend `script_of` in `aso_score.py`.
+
+3. **Generic auto-indexed words and stop words** are not removed from the
+   keyword — they're removed from the *content-token count*. A keyword
+   that has at least one non-stop-word token survives. A keyword that
+   IS only stop-words (e.g. "the for") is dropped. Configured via
+   `config.stopwords`. `app`, `free`, and the platform stop words (`the`,
+   `a`, `for`, `with`, `my`, `and`, `of`, …) carry no ranking value
+   because the store indexes them anyway. `config.keep_terms` overrides:
+   a token listed there survives even if it's in `stopwords`.
 
 4. **Words the app already indexes.** Tokens already present in the app's own
    current Title/Subtitle for this locale (config `self_indexed[locale]`, if

@@ -14,6 +14,11 @@ Run all three before Phase 1.
 
 ## 0a — AppTweak API key → `.env`
 
+**First, resolve the env var name from the config** (or the template if the
+config doesn't exist yet). The variable name is `config.apptweak_key_env`,
+default `APPTWEAK_API_KEY`. Use whatever the config says; do not hard-code
+`APPTWEAK_API_KEY` if the user changed it.
+
 Ask the user once:
 
 ```
@@ -21,20 +26,32 @@ I need an AppTweak API key to fetch competitor keywords. Paste your token here.
 It will be saved to .env (which is gitignored — never committed).
 ```
 
-Write the key to a `.env` file at the **app's project root** (the directory
-that contains `ASO/<AppName>/`), in this exact shape:
+Write the key to a `.env` file at the **project root** (the directory that
+contains `ASO/<AppName>/`), using the variable name from the config:
 
 ```
-APPTWEAK_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxx
+<APPTWEAK_KEY_ENV>=xxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-Then ensure `.env` is gitignored. If a `.gitignore` exists at the project
-root, append `.env` if not already present; otherwise create one with `.env`
-and `**/.env` in it.
+…where `<APPTWEAK_KEY_ENV>` is `config.apptweak_key_env` (default
+`APPTWEAK_API_KEY`).
 
-The config's `apptweak_key_env` field tells the script which environment
-variable to read (default `APPTWEAK_API_KEY`). Phase 1 loads it from `.env`;
-it is never written into any JSON/CSV output.
+### Existing-`.env` policy
+
+- If `.env` does not exist: create it with this one line.
+- If `.env` exists and the variable is **not** present: append the new line.
+  Leave every other line untouched.
+- If `.env` exists and the variable **is** present with the same value:
+  no-op. Confirm "API key already in .env".
+- If `.env` exists and the variable **is** present with a different value:
+  ask the user "overwrite the existing key?". On yes, replace just that
+  one line; on no, abort.
+
+### Gitignore
+
+Ensure `.env` is gitignored. If `.gitignore` exists, append `.env` if not
+already present (idempotent — check first). Otherwise create one with
+`.env` and `**/.env` in it.
 
 ### Rules
 
@@ -43,12 +60,16 @@ it is never written into any JSON/CSV output.
 - Never commit `.env`. If it's already tracked, untrack it with
   `git rm --cached .env`.
 - If the user refuses to share a key, ask whether they want to provide it
-  later via shell (`export APPTWEAK_API_KEY=...`); do not invent a fallback.
+  later via shell (`export <VAR>=...`); do not invent a fallback.
+- Phase 1 (`scripts/fetch_keywords.py`) performs a small preflight call
+  to verify the key before spending credits. A typo'd key fails fast there
+  with a friendly message.
 
 ### Done when
 
-`.env` exists at project root with `APPTWEAK_API_KEY=…`, `.gitignore`
-contains `.env`, and the key is no longer in the chat transcript.
+`.env` exists at project root containing `<config.apptweak_key_env>=…`,
+`.gitignore` contains `.env`, and the key is no longer in the chat
+transcript.
 
 ---
 

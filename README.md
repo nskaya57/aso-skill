@@ -70,9 +70,10 @@ weights are tunable in the config.
 ## Scripts
 
 ```bash
-# Phase 1 — fetch competitor keywords (reads .env)
+# Phase 1 — fetch competitor keywords (reads .env, runs preflight key check,
+#          retries 429/5xx with backoff). Default --max 100 per competitor.
 python scripts/fetch_keywords.py --config ASO/<App>/config.json \
-  --locale <locale> --out-dir ASO/<App>/<locale>/raw
+  --locale <locale> --out-dir ASO/<App>/<locale>/raw [--max 100] [--env .env]
 
 # Phase 2 — merge competitor JSONs into a matrix
 python scripts/aso_score.py --stage merge  --raw-dir ASO/<App>/<locale>/raw \
@@ -82,23 +83,42 @@ python scripts/aso_score.py --stage merge  --raw-dir ASO/<App>/<locale>/raw \
 python scripts/aso_score.py --stage filter --in ASO/<App>/<locale>/merged.csv \
   --config ASO/<App>/config.json --locale <locale> --out ASO/<App>/<locale>/filtered.csv
 
-# Phase 4 — after filling `semantic` column, compute total + sort
+# Phase 4a — emit a semantic.json skeleton for the model to fill
+python scripts/fill_semantic.py --in ASO/<App>/<locale>/filtered.csv \
+  --emit-skeleton ASO/<App>/<locale>/semantic.json
+
+# Phase 4b — apply the filled semantic.json to filtered.csv
+python scripts/fill_semantic.py --in ASO/<App>/<locale>/filtered.csv \
+  --semantic-json ASO/<App>/<locale>/semantic.json \
+  --out ASO/<App>/<locale>/filtered.semantic.csv
+
+# Phase 4c — compute totals + sort
 python scripts/aso_score.py --stage total --in ASO/<App>/<locale>/filtered.semantic.csv \
   --config ASO/<App>/config.json --out ASO/<App>/<locale>/scored.csv
 
 # Phase 4/5 — read features.md as structured JSON
 python scripts/parse_features.py --in ASO/<App>/features.md
 
+# Phase 5 — write fields.csv + append to OUTPUT.csv (safe CSV escaping)
+python scripts/write_fields.py --locale <locale> --title "..." --subtitle "..." \
+  --keywords "..." --promo "..." --description-file desc.txt \
+  --out ASO/<App>/<locale>/fields.csv --output-csv ASO/<App>/OUTPUT.csv
+
 # Phase 5 — validate composed fields
 python scripts/validate_fields.py --in ASO/<App>/<locale>/fields.csv \
   --config ASO/<App>/config.json --locale <locale>
 
-# Phase 5 — feature-compliance spot-check against features.md
+# Phase 5 — feature-compliance check (bullets + prose paragraphs vs features.md)
 python scripts/parse_features.py --in ASO/<App>/features.md \
   --check-description ASO/<App>/<locale>/fields.csv --locale <locale>
+
+# smoke test — synthetic 3-competitor / 1-locale end-to-end (no network)
+python scripts/smoke_test.py
 ```
 
 Pure standard library, no dependencies. Python ≥3.7.
+`smoke_test.py` does not exercise Phase 1 (it needs the AppTweak API);
+test the fetcher manually against a known app/locale before relying on it.
 
 ## Getting started
 
@@ -119,7 +139,9 @@ aso-keyword-pipeline/
 ├── SKILL.md
 ├── references/        phase-0..5, drive-hierarchy
 ├── assets/            config.schema.md, configs/{_template.json, _template.features.md}
-└── scripts/           fetch_keywords.py, aso_score.py, parse_features.py, validate_fields.py
+└── scripts/           fetch_keywords.py, aso_score.py, fill_semantic.py,
+                        parse_features.py, write_fields.py, validate_fields.py,
+                        smoke_test.py
 ```
 
 ## License

@@ -32,8 +32,13 @@ def norm(s):
     return (s or "").strip().lower()
 
 
+_WORD_RE = re.compile(r"[a-z0-9äöüßçğıöşüа-яё぀-ヿ一-鿿가-힯]+")
+
+
 def word_tokens(text):
-    return [t for t in re.split(r"[\s,]+", norm(text)) if t]
+    """Alphanumeric/script tokens only. Drops punctuation (`-`, `&`,
+    quotes, `…`) so dashes in titles don't become spurious tokens."""
+    return [t for t in _WORD_RE.findall(norm(text)) if t and len(t) >= 2]
 
 
 DEFAULT_PLURAL_SUFFIXES = {
@@ -185,6 +190,17 @@ def main():
         oks.append(f"Plural-pair check skipped for {args.locale} "
                    f"(no suffix rules — review keyword field manually)")
 
+    # Internal duplicates inside the keyword field itself
+    seen, kw_dups = set(), []
+    for t in kw_tokens:
+        if t in seen:
+            kw_dups.append(t)
+        else:
+            seen.add(t)
+    check(not kw_dups,
+          "No duplicate tokens within keyword field",
+          f"Duplicate tokens inside keyword field: {sorted(set(kw_dups))}")
+
     # cross-field duplication (token level)
     title_tok = set(word_tokens(title))
     sub_tok = set(word_tokens(subtitle))
@@ -192,10 +208,11 @@ def main():
     dup_ts = title_tok & sub_tok
     dup_tk = title_tok & kw_set
     dup_sk = sub_tok & kw_set
-    # brand token in title is expected; ignore the app name itself
-    appname = norm(cfg.get("app_name", ""))
+    # brand token in title is expected; ignore EVERY token of the app name
+    # (so multi-word app names like "Work Day" don't trip false duplicates)
+    appname_tokens = set(word_tokens(cfg.get("app_name", "")))
     for s in (dup_ts, dup_tk, dup_sk):
-        s.discard(appname)
+        s -= appname_tokens
     check(not dup_tk, "No Title<->Keyword duplicate tokens",
           f"Title<->Keyword duplicate tokens: {sorted(dup_tk)}")
     check(not dup_sk, "No Subtitle<->Keyword duplicate tokens",
